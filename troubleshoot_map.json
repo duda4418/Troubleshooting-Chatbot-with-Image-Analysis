@@ -1,0 +1,48 @@
+{
+  "dirty": {
+    "causes": ["Low temperature", "Under-dosing", "Blocked spray arm"],
+    "actions": [
+      {"type": "setting", "target": "temperature", "value": ">=60°C"},
+      {"type": "device", "target": "dosage", "value": "increase_one_step"},
+      {"type": "placement", "target": "device", "value": "upper_rack_front"},
+      {"type": "maintenance", "target": "spray_arms", "value": "check_and_clean"}
+    ]
+  },
+  "spots": {
+    "causes": ["Low rinse aid", "Hard water"],
+    "actions": [
+      {"type": "setting", "target": "rinse_aid", "value": "level_3"},
+      {"type": "device", "target": "mode", "value": "hard_water_mode"},
+      {"type": "setting", "target": "salt", "value": "enable_if_supported"}
+    ]
+  },
+  "residue": {
+    "causes": ["Overloading", "Detergent clumping", "Cold quick cycle"],
+    "actions": [
+      {"type": "loading", "target": "rack", "value": "space_items_2cm"},
+      {"type": "device", "target": "dosage", "value": "standard"},
+      {"type": "setting", "target": "cycle", "value": "normal_or_intensive"}
+    ]
+  },
+  "cloudy_glass": {
+    "causes": ["Etching risk", "Mineral film"],
+    "actions": [
+      {"type": "setting", "target": "temperature", "value": "50–55°C"},
+      {"type": "setting", "target": "rinse_aid", "value": "level_1"},
+      {"type": "device", "target": "mode", "value": "glass_protect"}
+    ]
+  },
+  "greasy": {
+    "causes": ["Grease saturation", "Cool cycles"],
+    "actions": [
+      {"type": "setting", "target": "temperature", "value": ">=65°C"},
+      {"type": "device", "target": "dosage", "value": "increase_one_step"}
+    ]
+  },
+  "inconclusive": {
+    "causes": ["Image unclear or mixed signals"],
+    "actions": [
+      {"type": "request", "target": "capture", "value": "retake_with_top_rack_visible"}
+    ]
+  }
+}
