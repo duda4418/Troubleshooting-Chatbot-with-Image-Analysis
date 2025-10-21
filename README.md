@@ -118,21 +118,3 @@ To run the server for development:
 ```bash
 uvicorn main:app --reload --port 8000
 ```
-
-## Production notes
-
-- Replace in-memory session storage with Redis or a database for reliability.
-- Add authentication and rate limiting if you expose the API publicly.
-- Sanitize and validate uploaded images before processing.
-- Consider opt-in data collection and privacy notices if storing user photos for model improvement.
-
-## Contributing
-
-Contributions are welcome. Please open issues or pull requests with improvements, bug fixes, or feature proposals.
-
-
----
-
-If you want, I can also:
-- Add a short example client script showing how to call /analyze and /chat,
-- Split the README into a shorter overview and a separate docs/ folder for full API reference.
