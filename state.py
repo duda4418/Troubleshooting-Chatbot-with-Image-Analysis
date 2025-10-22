@@ -1,2 +1,3 @@
-# Simple in-memory store; swap with Redis/Postgres later.
+# Simple in-memory store;
+# TO DO: swap with db later.
 SESSIONS: dict[str, dict] = {}
