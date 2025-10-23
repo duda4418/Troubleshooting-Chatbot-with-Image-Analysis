@@ -9,7 +9,8 @@ class AnalyzeResp(BaseModel):
 class ChatReq(BaseModel):
     session_id: str
     user_input: Optional[str] = None
-    event: str = Field(pattern="^(start|confirm|not_solved|try_again|done)$")
+    # Extindem pattern-ul pentru a include si 'solved' (folosit in fluxul de finalizare) si 'done'.
+    event: str = Field(pattern="^(start|confirm|not_solved|try_again|solved|done)$")
 
 class ChatResp(BaseModel):
     message: str

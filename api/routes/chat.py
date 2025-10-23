@@ -24,7 +24,11 @@ def chat(req: ChatReq):
     s.setdefault("phase", "intro")
     s.setdefault("alt_idx", 0)  # which alternatives set we’re on
 
+
     label = s.get("label", FALLBACK)
+    # DEBUG: Afișează label-ul și cheile disponibile în FLOW
+    print(f"[DEBUG] label: {label}")
+    print(f"[DEBUG] FLOW keys: {list(FLOW.keys())}")
     node = FLOW.get(label, FLOW[FALLBACK])
 
     ui = norm(req.user_input)
@@ -45,8 +49,9 @@ def chat(req: ChatReq):
         ev = "not_solved"  # treat “more options” as request for next set
 
     # ---- INTRO ----
-    if ev == "start" or s["phase"] == "intro":
-        s["phase"] = "intro"
+    # Afișează mesajul introductiv DOAR dacă evenimentul este 'start' și faza nu a trecut deja în 'steps'.
+    # Dacă utilizatorul apasă "Yes" (confirm) după intro, nu mai reintrăm aici.
+    if ev == "start" and s["phase"] == "intro":
         msg = (
             f"I see signs of **{label}** (confidence {s['confidence']:.2f}).\n"
             f"Likely causes: {', '.join(node.get('causes', []))}.\n"
