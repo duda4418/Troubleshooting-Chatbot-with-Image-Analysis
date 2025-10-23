@@ -51,8 +51,7 @@ def structured_label_from_openai(data_url: str, user_text: Optional[str], labels
             messages=[{"role": "user", "content": [
                 {"type": "text", "text": prompt_text},
                 {"type": "image_url", "image_url": {"url": data_url}}
-            ]}],
-            temperature=0.2,
+            ]}]
         )
         obj = json.loads(chat.choices[0].message.content)
         return obj["label"], float(obj["confidence"])
