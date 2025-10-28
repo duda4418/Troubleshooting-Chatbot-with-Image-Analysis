@@ -259,4 +259,106 @@
     ],
     "severity": "info"
   }
+  ,
+  "detergent_left": {
+    "causes": [
+      "Detergent dispenser lid blocked by dishes",
+      "Damp detergent compartment",
+      "Detergent added long before cycle start",
+      "Clogged impeller holes",
+      "Clogged filters",
+      "Detergent stored in humid conditions"
+    ],
+    "actions": [
+      {"type": "maintenance", "target": "detergent_dispenser", "value": "dry_before_filling"},
+      {"type": "maintenance", "target": "detergent_dispenser", "value": "add_detergent_just_before_start"},
+      {"type": "loading", "target": "rack", "value": "avoid_blocking_dispenser_lid"},
+      {"type": "maintenance", "target": "spray_arms", "value": "clean_impeller_holes"},
+      {"type": "maintenance", "target": "filter", "value": "clean_filter_system"}
+    ],
+    "alternatives": [
+      [
+        {"type": "device", "target": "detergent", "value": "use_tablet_detergents"},
+        {"type": "maintenance", "target": "detergent_dispenser", "value": "replace_if_faulty"}
+      ]
+    ],
+    "severity": "medium"
+  },
+  "rust_spots": {
+    "causes": [
+      "Cutlery not rust-resistant",
+      "Salt content in washing water too high",
+      "Washing rusting items together with cutlery"
+    ],
+    "actions": [
+      {"type": "device", "target": "cutlery", "value": "use_rust_resistant"},
+      {"type": "setting", "target": "salt", "value": "remove_spilled_salt_and_tighten_cap"},
+      {"type": "device", "target": "cutlery", "value": "do_not_wash_with_rusting_items"}
+    ],
+    "alternatives": [
+      [
+        {"type": "maintenance", "target": "cutlery", "value": "clean_rust_spots_with_mild_cleaner"}
+      ]
+    ],
+    "severity": "low"
+  },
+  "door_issue": {
+    "causes": [
+      "Door not closed properly",
+      "Top basket pressing against inner door",
+      "Door lock activated",
+      "Improper installation"
+    ],
+    "actions": [
+      {"type": "maintenance", "target": "door", "value": "close_with_greater_force_if_needed"},
+      {"type": "loading", "target": "rack", "value": "arrange_tableware_to_not_block_door"},
+      {"type": "maintenance", "target": "installation", "value": "check_installation_and_alignment"}
+    ],
+    "alternatives": [
+      [
+        {"type": "maintenance", "target": "door", "value": "check_for_obstructions_or_decor"}
+      ]
+    ],
+    "severity": "medium"
+  },
+  "noise": {
+    "causes": [
+      "Spray arm striking tableware",
+      "Small load causing water jets to hit tub",
+      "Light items moving during wash",
+      "Hard object in wash module",
+      "Normal valve or snap sounds"
+    ],
+    "actions": [
+      {"type": "loading", "target": "rack", "value": "arrange_tableware_to_not_block_spray_arms"},
+      {"type": "loading", "target": "rack", "value": "distribute_tableware_evenly"},
+      {"type": "device", "target": "tableware", "value": "position_light_items_securely"}
+    ],
+    "alternatives": [
+      [
+        {"type": "maintenance", "target": "wash_module", "value": "remove_hard_objects_if_noise_persists"}
+      ]
+    ],
+    "severity": "low"
+  },
+  "power_issue": {
+    "causes": [
+      "Mains fuse tripped",
+      "Mains cable not inserted",
+      "Door not closed properly",
+      "Power or water supply interrupted"
+    ],
+    "actions": [
+      {"type": "maintenance", "target": "power", "value": "check_fuse_and_socket"},
+      {"type": "maintenance", "target": "power", "value": "insert_mains_cable_properly"},
+      {"type": "maintenance", "target": "door", "value": "close_door_properly"},
+      {"type": "maintenance", "target": "supply", "value": "check_power_and_water_supply"}
+    ],
+    "alternatives": [
+      [
+        {"type": "maintenance", "target": "appliance", "value": "reset_by_power_cycle"}
+      ]
+    ],
+    "severity": "high"
+  }
 }
