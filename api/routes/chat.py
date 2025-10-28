@@ -1,5 +1,6 @@
 from fastapi import APIRouter, HTTPException
 from flow import FLOW, FALLBACK
+from services.openai_service import detect_intent_from_text
 from models import ChatReq, ChatResp
 from state import SESSIONS
 from utils.formatting import actions_to_text
@@ -25,13 +26,37 @@ def chat(req: ChatReq):
     s.setdefault("alt_idx", 0)  # which alternatives set we’re on
 
 
+
+    # --- INTENT DETECTION FROM USER TEXT (if no label set or fallback) ---
     label = s.get("label", FALLBACK)
+    ui = norm(req.user_input)
+    if (not s.get("label")) and ui:
+        try:
+            intent_result = detect_intent_from_text(ui)
+            intent_label = intent_result.get("intent", "").lower().replace(" ", "_")
+            confidence = float(intent_result.get("confidence", 0))
+            # If intent is a known label, use it; else fallback
+            if intent_label in FLOW:
+                label = intent_label
+                s["label"] = label
+                s["confidence"] = confidence
+            else:
+                label = FALLBACK
+                s["label"] = label
+                s["confidence"] = confidence
+        except Exception as e:
+            print(f"[ERROR] Intent detection failed: {e}")
+            label = FALLBACK
+            s["label"] = label
+            s["confidence"] = 0.0
+    else:
+        label = s.get("label", FALLBACK)
     # DEBUG: Afișează label-ul și cheile disponibile în FLOW
     print(f"[DEBUG] label: {label}")
     print(f"[DEBUG] FLOW keys: {list(FLOW.keys())}")
     node = FLOW.get(label, FLOW[FALLBACK])
+    # ui is already set above
 
-    ui = norm(req.user_input)
     ev = norm(req.event)
 
     # Map some common text → events (safety net)

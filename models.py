@@ -2,9 +2,18 @@ from typing import List, Optional
 from pydantic import BaseModel, Field
 
 class AnalyzeResp(BaseModel):
-    label: str = Field(description="One of the known classes or 'inconclusive'")
+    # Unified best-effort label/confidence used by downstream flow
+    label: str = Field(description="Primary label chosen from image/text analyses or 'inconclusive'")
     confidence: float = Field(ge=0, le=1)
     session_id: str
+    # Optional separate sources
+    image_label: Optional[str] = Field(default=None, description="Label from image analysis if image provided")
+    image_confidence: Optional[float] = Field(default=None, ge=0, le=1)
+    text_intent: Optional[str] = Field(default=None, description="Intent extracted from user text if text provided")
+    text_intent_confidence: Optional[float] = Field(default=None, ge=0, le=1)
+
+class AnalyzeTextReq(BaseModel):
+    user_text: str = Field(min_length=1, description="Free text describing the issue.")
 
 class ChatReq(BaseModel):
     session_id: str
