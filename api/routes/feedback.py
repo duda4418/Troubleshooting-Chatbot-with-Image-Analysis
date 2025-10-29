@@ -9,7 +9,7 @@ feedback_router = APIRouter(prefix="", tags=["feedback"])
 def feedback(body: FeedbackReq):
     s = SESSIONS.get(body.session_id)
     if not s:
-        raise HTTPException(404, "Unknown session_id")
+        raise HTTPException(404, _("Unknown session_id"))
     s["status"] = "solved" if body.solved else "unsolved"
     s.setdefault("feedback", {})
     s["feedback"]["final_label"] = body.final_label

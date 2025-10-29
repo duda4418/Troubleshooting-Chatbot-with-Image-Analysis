@@ -2,7 +2,7 @@ import io
 import uuid
 from typing import Optional
 
-from fastapi import APIRouter, File, HTTPException, UploadFile, Form
+from fastapi import APIRouter, File, HTTPException, UploadFile, Form, Request
 from PIL import Image
 
 from config import settings
@@ -16,11 +16,12 @@ analyze_router = APIRouter(prefix="", tags=["analyze"])
 
 @analyze_router.post("/analyze", response_model=AnalyzeResp)
 async def analyze(
+    request: Request,
     image: Optional[UploadFile] = File(None),
     user_text: Optional[str] = Form(None)
 ):
     if not image and not user_text:
-        raise HTTPException(400, "You need to provide either an image or some text input.")
+        raise HTTPException(400, _("You need to provide either an image or some text input."))
 
     image_label = None
     image_conf = None
@@ -30,15 +31,21 @@ async def analyze(
     # Process image only (does not mix user_text into vision prompt unless both provided)
     if image:
         if image.content_type not in settings.ALLOWED_TYPES:
-            raise HTTPException(400, f"Invalid file type: {image.content_type}")
+            raise HTTPException(400, _("Invalid file type: {ct}").format(ct=image.content_type))
         raw = await image.read()
         if len(raw) > settings.MAX_IMAGE_BYTES:
-            raise HTTPException(400, "File too large (max 8MB)")
+            raise HTTPException(400, _("File too large (max 8MB)"))
         img = Image.open(io.BytesIO(raw)).convert("RGB")
         data_url = pil_to_data_url(img)
         # For pure image (without text) we pass None; if both we pass user_text for richer context
         vision_text = user_text if user_text else None
-        v_label, v_conf = structured_label_from_openai(data_url, vision_text, LABELS, FALLBACK)
+        v_label, v_conf = structured_label_from_openai(
+            data_url,
+            vision_text,
+            LABELS,
+            FALLBACK,
+            lang=getattr(request.state, "lang", "en")  # NEW: propagate lang
+        )
         if v_label not in LABELS and v_label != FALLBACK:
             v_label = FALLBACK
         image_label = v_label
@@ -46,7 +53,10 @@ async def analyze(
 
     # Process text intent if provided
     if user_text:
-        intent_result = detect_intent_from_text(user_text)
+        intent_result = detect_intent_from_text(
+            user_text,
+            lang=getattr(request.state, "lang", "en")  # NEW: propagate lang
+        )
         intent_label_raw = intent_result.get("intent", FALLBACK)
         intent_label = intent_label_raw.lower().replace(" ", "_")
         intent_conf = float(intent_result.get("confidence", 0))
@@ -90,8 +100,11 @@ async def analyze(
     }
 
 @analyze_router.post("/analyze-text", response_model=AnalyzeResp)
-async def analyze_text(req: AnalyzeTextReq):
-    intent_result = detect_intent_from_text(req.user_text)
+async def analyze_text(req: AnalyzeTextReq, request: Request):
+    intent_result = detect_intent_from_text(
+        req.user_text,
+        lang=getattr(request.state, "lang", "en")  # NEW: propagate lang
+    )
     intent_label_raw = intent_result.get("intent", FALLBACK)
     intent_label = intent_label_raw.lower().replace(" ", "_")
     intent_conf = float(intent_result.get("confidence", 0))
