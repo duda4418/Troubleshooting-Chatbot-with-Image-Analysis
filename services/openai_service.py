@@ -55,3 +55,60 @@ def structured_label_from_openai(data_url: str, user_text: Optional[str], labels
         )
         obj = json.loads(chat.choices[0].message.content)
         return obj["label"], float(obj["confidence"])
+
+# --- New function for NLP intent detection from free text ---
+def detect_intent_from_text(user_text: str) -> dict:
+    """Extracts an intent mapped to known dishwasher issue labels.
+
+    Returns dict: {intent: <label|inconclusive>, confidence: float, raw: <original model JSON>}
+    """
+    labels = settings.LABELS
+    fallback = settings.FALLBACK
+
+    # Basic synonym mapping to help normalize model output / user phrasing
+    synonyms = {
+        "cloudy": "cloudy_glass",
+        "cloudy_glass": "cloudy_glass",
+        "film": "residue",
+        "residue": "residue",
+        "grease": "greasy",
+        "greasy": "greasy",
+        "spots": "spots",
+        "stains": "spots",
+        "dirty": "dirty",
+        "unclean": "dirty",
+        "oily": "greasy",
+    }
+
+    constraint_list = labels + [fallback]
+    prompt = (
+        "You are an expert dishwasher troubleshooting intent classifier. "
+        f"Valid intents: {constraint_list}. "
+        "Map user description to the closest valid intent (use semantic similarity). If none match confidently, use 'inconclusive'. "
+        "Return ONLY JSON with keys intent (one of the valid intents) and confidence (0-1). "
+        f"User text: '{user_text}'"
+    )
+
+    chat = client.chat.completions.create(
+        model=settings.OPENAI_TEXT_MODEL,
+        response_format={"type": "json_object"},
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.0,
+    )
+    raw_content = chat.choices[0].message.content
+    try:
+        obj = json.loads(raw_content)
+    except json.JSONDecodeError:
+        obj = {"intent": fallback, "confidence": 0.0}
+
+    intent_raw = str(obj.get("intent", fallback)).lower().strip()
+    # Normalize via synonyms mapping
+    intent_norm = synonyms.get(intent_raw, intent_raw)
+    if intent_norm not in constraint_list:
+        intent_norm = fallback
+    conf = float(obj.get("confidence", 0))
+
+    debug_payload = {"raw": obj, "prompt_used": prompt}
+    print(f"[INTENT_DEBUG] input='{user_text}' model_raw={obj} normalized_intent={intent_norm} confidence={conf}")
+
+    return {"intent": intent_norm, "confidence": conf, "_debug": debug_payload}
