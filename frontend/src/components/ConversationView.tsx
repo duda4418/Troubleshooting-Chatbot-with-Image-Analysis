@@ -3,6 +3,7 @@ import ChatComposer from "./ChatComposer";
 import ConversationTimeline from "./conversation/ConversationTimeline";
 import type { FollowUpFormSubmission } from "./followup-form";
 import type { ChatMessage, FollowUpFormDescriptor } from "../types";
+import FeedbackPrompt from "./feedback/FeedbackPrompt";
 
 interface ConversationViewProps {
   messages: ChatMessage[];
@@ -15,6 +16,9 @@ interface ConversationViewProps {
   isSending?: boolean;
   loading?: boolean;
   activeSessionId?: string | null;
+  canCompose?: boolean;
+  onSubmitFeedback?: (rating: number, comment?: string) => Promise<void> | void;
+  feedbackSubmitted?: boolean;
 }
 
 const ConversationView = ({
@@ -22,7 +26,10 @@ const ConversationView = ({
   onSendMessage,
   isSending = false,
   loading = false,
-  activeSessionId = null
+  activeSessionId = null,
+  canCompose = true,
+  onSubmitFeedback,
+  feedbackSubmitted = false,
 }: ConversationViewProps) => {
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const composerWrapperRef = useRef<HTMLDivElement | null>(null);
@@ -142,6 +149,9 @@ const ConversationView = ({
       form: FollowUpFormDescriptor,
       submission: FollowUpFormSubmission
     ) => {
+      if (!canCompose) {
+        return;
+      }
       const fieldResponses = buildFieldResponses(submission, form);
       const metadata = {
         client_hidden: true,
@@ -161,11 +171,14 @@ const ConversationView = ({
         forceSend: true,
       });
     },
-    [onSendMessage]
+    [onSendMessage, canCompose]
   );
 
   const handleFormDismiss = useCallback(
     async (message: ChatMessage, form: FollowUpFormDescriptor) => {
+      if (!canCompose) {
+        return;
+      }
       const metadata = {
         client_hidden: true,
         form_id: form.id,
@@ -184,7 +197,7 @@ const ConversationView = ({
         forceSend: true,
       });
     },
-    [onSendMessage]
+    [onSendMessage, canCompose]
   );
 
   return (
@@ -202,12 +215,20 @@ const ConversationView = ({
         className="sticky bottom-1 z-30 mt-auto bg-gradient-to-t from-brand-background via-brand-background/95 to-transparent px-4 pb-2 pt-3 sm:bottom-1 sm:px-6 lg:bottom-2 lg:px-8"
         style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 0.35rem)" }}
       >
-        <div ref={composerWrapperRef} className="mx-auto w-full max-w-3xl">
-          <ChatComposer
-            disabled={isSending || loading}
-            onSend={handleSend}
-            placeholder="Describe the issue you need help with..."
-          />
+        <div
+          key={activeSessionId ?? "new-session"}
+          ref={composerWrapperRef}
+          className="mx-auto w-full max-w-3xl"
+        >
+          {canCompose ? (
+            <ChatComposer
+              disabled={isSending || loading}
+              onSend={handleSend}
+              placeholder="Describe the issue you need help with..."
+            />
+          ) : (
+            <FeedbackPrompt onSubmit={onSubmitFeedback} initialSubmitted={feedbackSubmitted} />
+          )}
         </div>
       </div>
     </section>

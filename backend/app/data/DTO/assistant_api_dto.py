@@ -33,6 +33,7 @@ class ConversationSessionRead(BaseModel):
     created_at: datetime
     updated_at: datetime
     ended_at: Optional[datetime] = None
+    feedback_rating: Optional[int] = None
 
 
 class ConversationMessageRead(BaseModel):
@@ -52,3 +53,8 @@ class ConversationHistoryResponse(BaseModel):
 
     session: ConversationSessionRead
     history: List[ConversationMessageRead] = Field(default_factory=list)
+
+
+class SessionFeedbackRequest(BaseModel):
+    rating: int = Field(..., ge=1, le=5)
+    comment: Optional[str] = None

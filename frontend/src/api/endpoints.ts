@@ -4,7 +4,8 @@ export const endpoints = {
   assistant: {
     sessions: () => `${ASSISTANT_BASE}/sessions`,
     sessionHistory: (sessionId: string) => `${ASSISTANT_BASE}/sessions/${sessionId}/history`,
-    messages: () => `${ASSISTANT_BASE}/messages`
+    messages: () => `${ASSISTANT_BASE}/messages`,
+    sessionFeedback: (sessionId: string) => `${ASSISTANT_BASE}/sessions/${sessionId}/feedback`
   }
 } as const;
 

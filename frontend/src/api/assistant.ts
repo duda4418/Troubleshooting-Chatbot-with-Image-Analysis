@@ -7,6 +7,7 @@ export interface ApiConversationSession {
   created_at: string;
   updated_at: string;
   ended_at?: string | null;
+  feedback_rating?: number | null;
 }
 
 export interface ApiConversationMessage {
@@ -71,6 +72,11 @@ export interface AssistantMessageResponse {
   form_id?: string | null;
 }
 
+export interface SessionFeedbackPayload {
+  rating: number;
+  comment?: string | null;
+}
+
 export const fetchSessions = async (limit = 50): Promise<ApiConversationSession[]> => {
   const { data } = await apiClient.get<ApiConversationSession[]>(endpoints.assistant.sessions(), {
     params: { limit }
@@ -96,4 +102,11 @@ export const sendAssistantMessage = async (
 ): Promise<AssistantMessageResponse> => {
   const { data } = await apiClient.post<AssistantMessageResponse>(endpoints.assistant.messages(), payload);
   return data;
+};
+
+export const submitSessionFeedback = async (
+  sessionId: string,
+  payload: SessionFeedbackPayload
+): Promise<void> => {
+  await apiClient.post(endpoints.assistant.sessionFeedback(sessionId), payload);
 };

@@ -12,6 +12,7 @@ from app.services import (
     AssistantService,
     ChromaService,
     ConversationContextService,
+    FeedbackFlowService,
     FormSubmissionService,
     ImageAnalysisService,
     RecommendationTracker,
@@ -99,6 +100,11 @@ def get_response_generation_service() -> ResponseGenerationService:
 
 
 @lru_cache()
+def get_feedback_flow_service() -> FeedbackFlowService:
+    return FeedbackFlowService()
+
+
+@lru_cache()
 def get_assistant_service() -> AssistantService:
     return AssistantService(
         session_repository=get_conversation_session_repository(),
@@ -106,6 +112,7 @@ def get_assistant_service() -> AssistantService:
         image_analysis_service=get_image_analysis_service(),
         context_service=get_conversation_context_service(),
         form_submission_service=get_form_submission_service(),
+        feedback_flow_service=get_feedback_flow_service(),
         recommendation_tracker=get_recommendation_tracker(),
         response_service=get_response_generation_service(),
         knowledge_tool=get_knowledge_search_tool(),

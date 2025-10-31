@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-import random
 from typing import Any, Dict, List, Optional, Tuple
 from uuid import UUID, uuid4
 
@@ -26,6 +25,7 @@ from app.data.schemas.models import ConversationMessage, ConversationSession, Me
 from app.services.conversation_context_service import ConversationContextService
 from app.services.image_analysis_service import ImageAnalysisService
 from app.services.form_submission_service import FormSubmissionService
+from app.services.feedback_flow_service import FeedbackFlowService
 from app.services.recommendation_tracker import RecommendationTracker, RecommendationHistory
 from app.services.response_generation_service import ResponseGenerationService
 from app.tools.knowledge_tool import KnowledgeSearchTool
@@ -45,6 +45,7 @@ class AssistantService:
         image_analysis_service: ImageAnalysisService,
         context_service: ConversationContextService,
         form_submission_service: FormSubmissionService,
+        feedback_flow_service: FeedbackFlowService,
         recommendation_tracker: RecommendationTracker,
         response_service: ResponseGenerationService,
         knowledge_tool: Optional[KnowledgeSearchTool] = None,
@@ -55,6 +56,7 @@ class AssistantService:
         self._image_analysis = image_analysis_service
         self._context_service = context_service
         self._form_submission_service = form_submission_service
+        self._feedback_flow = feedback_flow_service
         self._recommendation_tracker = recommendation_tracker
         self._response_service = response_service
         self._knowledge_tool = knowledge_tool
@@ -64,11 +66,18 @@ class AssistantService:
         session = await self._get_or_create_session(request.session_id)
         session_id = session.id
 
+        if session.status != "in_progress":
+            raise PermissionError("Conversation has already been completed.")
+
         metadata = dict(request.metadata or {})
         history = await self._recommendation_tracker.build_history(session_id)
 
         form_result = await self._form_submission_service.process(session_id, metadata)
         metadata = self._merge_metadata(metadata, form_result.metadata_updates)
+
+        completed_status: Optional[str] = None
+        if form_result.resolved:
+            completed_status = "resolved"
 
         form_summary = form_result.summary
         ticket_details: Optional[Dict[str, Any]] = None
@@ -88,6 +97,7 @@ class AssistantService:
                         "extra": {"ticket": ticket_details},
                     },
                 )
+                completed_status = "escalated"
 
         combined_user_text = self._compose_user_text(request.text, form_summary)
 
@@ -103,6 +113,10 @@ class AssistantService:
         if request.images_b64:
             await self._maybe_analyze_images(session_id, user_message.id, request)
 
+        follow_up_decision = self._feedback_flow.handle_form_submission(form_result)
+        if follow_up_decision.completed_status:
+            completed_status = follow_up_decision.completed_status
+
         knowledge_hits: List[KnowledgeHit] = []
         if form_result.skip_response:
             answer = AssistantAnswer(
@@ -111,6 +125,14 @@ class AssistantService:
                 follow_up_form=None,
                 confidence=None,
                 metadata={"client_hidden": True},
+            )
+        elif follow_up_decision.handled:
+            answer = follow_up_decision.answer or AssistantAnswer(
+                reply="",
+                suggested_actions=[],
+                follow_up_form=None,
+                confidence=None,
+                metadata={},
             )
         else:
             knowledge_hits = await self._maybe_lookup_knowledge(combined_user_text)
@@ -142,7 +164,7 @@ class AssistantService:
                 self._attach_ticket_metadata(answer, ticket_details)
 
             if not escalated:
-                self._maybe_attach_feedback_form(
+                self._feedback_flow.maybe_attach_feedback_form(
                     answer,
                     prior_messages=recent_assistant_messages,
                 )
@@ -153,7 +175,10 @@ class AssistantService:
             knowledge_hits=knowledge_hits,
         )
 
-        await self._session_repository.touch(session_id)
+        if completed_status:
+            await self._session_repository.close(session_id, status=completed_status)
+        else:
+            await self._session_repository.touch(session_id)
 
         return AssistantMessageResponse(
             session_id=session_id,
@@ -210,6 +235,14 @@ class AssistantService:
             message_metadata=metadata_copy,
         )
         return await self._message_repository.create(message)
+
+    async def submit_feedback(self, session_id: UUID, *, rating: int, comment: Optional[str] = None) -> None:
+        session = await self._session_repository.get_by_id(session_id)
+        if not session:
+            raise ValueError("Session not found")
+        if session.status == "in_progress":
+            raise PermissionError("Conversation is still active.")
+        await self._session_repository.set_feedback(session_id, rating=rating, comment=comment)
 
     async def _persist_assistant_message(
         self,
@@ -330,44 +363,6 @@ class AssistantService:
         metadata["form_kind"] = "escalation"
         answer.metadata = metadata
         return True
-
-    def _maybe_attach_feedback_form(
-        self,
-        answer: AssistantAnswer,
-        *,
-        prior_messages: List[ConversationMessage],
-    ) -> None:
-        if answer.follow_up_form is not None:
-            return
-        if not answer.suggested_actions:
-            return
-        if self._recent_form_kind(prior_messages, "feedback", limit=2):
-            return
-        if random.random() > 0.5:
-            return
-
-        metadata = dict(answer.metadata or {})
-        metadata["form_kind"] = "feedback"
-        answer.metadata = metadata
-        answer.follow_up_form = self._build_feedback_form()
-
-    @staticmethod
-    def _build_feedback_form() -> GeneratedForm:
-        return GeneratedForm(
-            title="Quick check-in",
-            description="Let us know if the latest suggestion helped.",
-            fields=[
-                GeneratedFormField(
-                    question="Did that help?",
-                    input_type="single_choice",
-                    required=True,
-                    options=[
-                        GeneratedFormOption(value="yes", label="Yes"),
-                        GeneratedFormOption(value="no", label="No"),
-                    ],
-                )
-            ],
-        )
 
     @staticmethod
     def _already_escalated(messages: List[ConversationMessage]) -> bool:

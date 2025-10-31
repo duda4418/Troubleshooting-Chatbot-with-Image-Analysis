@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Route, Routes, useNavigate, useParams } from "react-router-dom";
 import Header from "layout/Header";
 import Sidebar from "layout/Sidebar";
@@ -9,6 +9,7 @@ import {
   fetchSessions,
   fetchSessionHistory,
   sendAssistantMessage,
+  submitSessionFeedback,
   type ApiConversationHistoryResponse,
   type ApiConversationMessage,
   type ApiConversationSession
@@ -482,7 +483,9 @@ const toConversationSession = (
   createdAt: session.created_at,
   updatedAt: session.updated_at,
   title,
-  lastUpdatedLabel: formatUpdatedLabel(session.updated_at)
+  lastUpdatedLabel: formatUpdatedLabel(session.updated_at),
+  endedAt: session.ended_at ?? null,
+  feedbackRating: session.feedback_rating ?? null,
 });
 
 const deriveSessionTitle = (
@@ -514,6 +517,19 @@ function ChatPage() {
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [shouldAutoSelect, setShouldAutoSelect] = useState(true);
+
+  const activeSession = useMemo(
+    () =>
+      activeSessionId
+        ? sessions.find((session: ConversationSession) => session.id === activeSessionId) ?? null
+        : null,
+    [sessions, activeSessionId]
+  );
+
+  const sessionClosed =
+    !!activeSession && (activeSession.status === "resolved" || activeSession.status === "escalated");
+  const canCompose = !sessionClosed;
+  const feedbackSubmitted = Boolean(activeSession?.feedbackRating);
 
   useEffect(() => {
     setActiveSessionId(sessionIdParam ?? null);
@@ -643,6 +659,11 @@ function ChatPage() {
       return;
     }
 
+    if (!forceSend && sessionClosed) {
+      setError("This conversation has ended. Start a new conversation to continue.");
+      throw new Error("conversation_closed");
+    }
+
     setError(null);
     setIsSending(true);
 
@@ -766,13 +787,21 @@ function ChatPage() {
       }
 
       const resolvedSessionId = response.session_id;
-  navigate(`/${resolvedSessionId}`);
+    navigate(`/${resolvedSessionId}`);
       setActiveSessionId(resolvedSessionId);
       await refreshSessions();
       await loadHistory(resolvedSessionId);
     } catch (err) {
       console.error("Failed to send message", err);
-      setError("We couldn’t reach the assistant. Please retry.");
+      const status =
+        err && typeof err === "object" && "response" in err
+          ? (err as { response?: { status?: number } }).response?.status
+          : undefined;
+      if (status === 403) {
+        setError("This conversation has ended. Start a new conversation to continue.");
+      } else {
+        setError("We couldn’t reach the assistant. Please retry.");
+      }
       if (tempUserId) {
         setMessages((prev) => {
           const withoutAssistant = tempAssistantId ? prev.filter((msg) => msg.id !== tempAssistantId) : prev;
@@ -799,6 +828,33 @@ function ChatPage() {
     setShouldAutoSelect(false);
     navigate("/");
   };
+
+  const handleSubmitFeedback = useCallback(
+    async (rating: number, comment?: string) => {
+      if (!activeSessionId) {
+        throw new Error("No active session selected.");
+      }
+      if (!sessionClosed) {
+        throw new Error("Feedback is only available once the session is complete.");
+      }
+
+      try {
+        await submitSessionFeedback(activeSessionId, { rating, comment: comment ?? null });
+        setSessions((prevSessions: ConversationSession[]) =>
+          prevSessions.map((session: ConversationSession) =>
+            session.id === activeSessionId ? { ...session, feedbackRating: rating } : session
+          )
+        );
+        refreshSessions().catch((refreshError: unknown) => {
+          console.error("Failed to refresh sessions after feedback", refreshError);
+        });
+      } catch (err) {
+        console.error("Failed to submit feedback", err);
+        throw err;
+      }
+    },
+    [activeSessionId, refreshSessions, sessionClosed]
+  );
 
   return (
     <div className="flex min-h-screen flex-col bg-brand-background text-white">
@@ -831,6 +887,9 @@ function ChatPage() {
             isSending={isSending}
             activeSessionId={activeSessionId}
             onSendMessage={handleSendMessage}
+            canCompose={canCompose}
+            feedbackSubmitted={feedbackSubmitted}
+            onSubmitFeedback={canCompose ? undefined : handleSubmitFeedback}
           />
         </main>
 

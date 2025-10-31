@@ -19,6 +19,7 @@ from .assistant_api_dto import (
     ConversationHistoryResponse,
     ConversationMessageRead,
     ConversationSessionRead,
+    SessionFeedbackRequest,
 )
 from .conversation_context_dto import (
     ConversationAIContext,
@@ -48,6 +49,7 @@ __all__ = [
     "ConversationHistoryResponse",
     "ConversationMessageRead",
     "ConversationSessionRead",
+    "SessionFeedbackRequest",
     "ConversationAIContext",
     "ImageAnalysisRequest",
     "ImageAnalysisResponse",

@@ -119,6 +119,8 @@ export interface ConversationSession {
   updatedAt: string;
   title: string;
   lastUpdatedLabel: string;
+  endedAt?: string | null;
+  feedbackRating?: number | null;
 }
 
 export interface ConversationHistory {

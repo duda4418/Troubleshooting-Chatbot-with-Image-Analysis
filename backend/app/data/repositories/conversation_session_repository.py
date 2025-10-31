@@ -44,6 +44,39 @@ class ConversationSessionRepository(BaseRepository[ConversationSession]):
             await session.refresh(existing)
             return existing
 
+    async def close(self, session_id: UUID, *, status: str) -> Optional[ConversationSession]:
+        async with self.db_provider.get_session() as session:
+            existing = await session.get(ConversationSession, session_id)
+            if not existing:
+                return None
+            now = utcnow()
+            existing.status = status
+            existing.updated_at = now
+            existing.ended_at = now
+            session.add(existing)
+            await session.commit()
+            await session.refresh(existing)
+            return existing
+
+    async def set_feedback(
+        self,
+        session_id: UUID,
+        *,
+        rating: Optional[int] = None,
+        comment: Optional[str] = None,
+    ) -> Optional[ConversationSession]:
+        async with self.db_provider.get_session() as session:
+            existing = await session.get(ConversationSession, session_id)
+            if not existing:
+                return None
+            existing.feedback_rating = rating
+            existing.feedback_text = comment
+            existing.updated_at = utcnow()
+            session.add(existing)
+            await session.commit()
+            await session.refresh(existing)
+            return existing
+
     async def list_recent(self, *, limit: int = 50) -> list[ConversationSession]:
         async with self.db_provider.get_session() as session:
             stmt = (

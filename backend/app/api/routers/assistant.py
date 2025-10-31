@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import List
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 
 from app.core.dependencies import get_assistant_service
 from app.data.DTO import (
@@ -11,6 +11,7 @@ from app.data.DTO import (
     AssistantMessageResponse,
     ConversationHistoryResponse,
     ConversationSessionRead,
+    SessionFeedbackRequest,
 )
 from app.services.assistant_service import AssistantService
 
@@ -22,7 +23,10 @@ async def send_message(
     payload: AssistantMessageRequest,
     assistant_service: AssistantService = Depends(get_assistant_service),
 ) -> AssistantMessageResponse:
-    return await assistant_service.handle_message(payload)
+    try:
+        return await assistant_service.handle_message(payload)
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
 
 
 @router.get("/sessions", response_model=List[ConversationSessionRead])
@@ -48,3 +52,21 @@ async def get_history(
         raise HTTPException(status_code=404, detail="Session not found") from exc
 
     return ConversationHistoryResponse(session=session, history=messages)
+
+
+@router.post(
+    "/sessions/{session_id}/feedback",
+    status_code=204,
+)
+async def submit_feedback(
+    session_id: UUID,
+    payload: SessionFeedbackRequest,
+    assistant_service: AssistantService = Depends(get_assistant_service),
+) -> Response:
+    try:
+        await assistant_service.submit_feedback(session_id, rating=payload.rating, comment=payload.comment)
+    except ValueError as exc:  # noqa: BLE001
+        raise HTTPException(status_code=404, detail="Session not found") from exc
+    except PermissionError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return Response(status_code=204)

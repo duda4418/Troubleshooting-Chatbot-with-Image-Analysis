@@ -17,6 +17,9 @@ class FormProcessingResult:
     form_kind: Optional[str]
     escalation_confirmed: bool
     metadata_updates: Dict[str, Any]
+    resolved: bool
+    feedback_helped: Optional[bool] = None
+    resolution_confirmed: Optional[bool] = None
 
 
 class FormSubmissionService:
@@ -28,7 +31,14 @@ class FormSubmissionService:
     async def process(self, session_id: UUID, metadata: Dict[str, Any]) -> FormProcessingResult:
         submission = self._extract_form_submission(metadata)
         if not submission:
-            return FormProcessingResult(summary=None, skip_response=False, form_kind=None, escalation_confirmed=False, metadata_updates={})
+            return FormProcessingResult(
+                summary=None,
+                skip_response=False,
+                form_kind=None,
+                escalation_confirmed=False,
+                metadata_updates={},
+                resolved=False,
+            )
 
         form_kind = await self._resolve_form_kind(session_id, metadata, submission)
         status = self._normalize_text(submission.get("status"))
@@ -45,6 +55,9 @@ class FormSubmissionService:
         if form_kind:
             metadata_updates["form_kind"] = form_kind
 
+        feedback_helped: Optional[bool] = None
+        resolution_confirmed: Optional[bool] = None
+
         if status == "dismissed":
             skip_response = True
             if form_kind == "escalation":
@@ -55,18 +68,74 @@ class FormSubmissionService:
             else:
                 summary = "Follow-up form dismissed."
             self._maybe_attach_summary(metadata_updates, summary)
-            return FormProcessingResult(summary=summary, skip_response=skip_response, form_kind=form_kind, escalation_confirmed=False, metadata_updates=metadata_updates)
+            return FormProcessingResult(
+                summary=summary,
+                skip_response=skip_response,
+                form_kind=form_kind,
+                escalation_confirmed=False,
+                metadata_updates=metadata_updates,
+                resolved=False,
+                feedback_helped=feedback_helped,
+                resolution_confirmed=resolution_confirmed,
+            )
 
         if form_kind == "escalation":
             summary, escalation_confirmed = self._handle_escalation(choice, status, yes_values, no_values)
             if escalation_confirmed:
                 metadata_updates["escalation"] = {"status": "user_confirmed"}
             self._maybe_attach_summary(metadata_updates, summary)
-            return FormProcessingResult(summary=summary, skip_response=False, form_kind=form_kind, escalation_confirmed=escalation_confirmed, metadata_updates=metadata_updates)
+            return FormProcessingResult(
+                summary=summary,
+                skip_response=False,
+                form_kind=form_kind,
+                escalation_confirmed=escalation_confirmed,
+                metadata_updates=metadata_updates,
+                resolved=False,
+                feedback_helped=feedback_helped,
+                resolution_confirmed=resolution_confirmed,
+            )
 
-        summary = self._handle_feedback(choice, status, yes_values, no_values)
+        if form_kind == "feedback":
+            summary, feedback_helped = self._handle_feedback(choice, status, yes_values, no_values)
+            self._maybe_attach_summary(metadata_updates, summary)
+            return FormProcessingResult(
+                summary=summary,
+                skip_response=False,
+                form_kind=form_kind,
+                escalation_confirmed=False,
+                metadata_updates=metadata_updates,
+                resolved=False,
+                feedback_helped=feedback_helped,
+                resolution_confirmed=resolution_confirmed,
+            )
+
+        if form_kind == "resolution_check":
+            summary, resolution_confirmed = self._handle_resolution_check(choice, status, yes_values, no_values)
+            self._maybe_attach_summary(metadata_updates, summary)
+            resolved = bool(resolution_confirmed)
+            return FormProcessingResult(
+                summary=summary,
+                skip_response=False,
+                form_kind=form_kind,
+                escalation_confirmed=False,
+                metadata_updates=metadata_updates,
+                resolved=resolved,
+                feedback_helped=feedback_helped,
+                resolution_confirmed=resolution_confirmed,
+            )
+
+        summary, generic_feedback = self._handle_feedback(choice, status, yes_values, no_values)
         self._maybe_attach_summary(metadata_updates, summary)
-        return FormProcessingResult(summary=summary, skip_response=False, form_kind=form_kind, escalation_confirmed=False, metadata_updates=metadata_updates)
+        return FormProcessingResult(
+            summary=summary,
+            skip_response=False,
+            form_kind=form_kind,
+            escalation_confirmed=False,
+            metadata_updates=metadata_updates,
+            resolved=False,
+            feedback_helped=generic_feedback,
+            resolution_confirmed=resolution_confirmed,
+        )
 
     def _handle_escalation(
         self,
@@ -106,21 +175,54 @@ class FormSubmissionService:
         status: Optional[str],
         yes_values: set[str],
         no_values: set[str],
-    ) -> Optional[str]:
+    ) -> tuple[Optional[str], Optional[bool]]:
+        helped: Optional[bool] = None
         if status == "submitted":
             if choice in yes_values:
-                return "Feedback: the user said the last suggestion helped."
+                helped = True
+                return ("Feedback: the user said the last suggestion helped.", helped)
             if choice in no_values:
-                return "Feedback: the user said the last suggestion did not help. Provide a different approach."
+                helped = False
+                return ("Feedback: the user said the last suggestion did not help. Provide a different approach.", helped)
             if choice:
-                return f"Feedback response provided: {choice}."
-            return "Feedback form was submitted without a specific answer."
+                return (f"Feedback response provided: {choice}.", helped)
+            return ("Feedback form was submitted without a specific answer.", helped)
 
         if status:
-            return f"Feedback form status: {status}."
+            return (f"Feedback form status: {status}.", helped)
         if choice:
-            return f"Feedback response provided: {choice}."
-        return None
+            if choice in yes_values:
+                return ("Feedback response provided: yes.", True)
+            if choice in no_values:
+                return ("Feedback response provided: no.", False)
+            return (f"Feedback response provided: {choice}.", helped)
+        return (None, helped)
+
+    def _handle_resolution_check(
+        self,
+        choice: Optional[str],
+        status: Optional[str],
+        yes_values: set[str],
+        no_values: set[str],
+    ) -> tuple[Optional[str], Optional[bool]]:
+        if status == "submitted":
+            if choice in yes_values:
+                return ("Resolution check: the user confirmed the issue is fully resolved.", True)
+            if choice in no_values:
+                return ("Resolution check: the user reported the issue is still present.", False)
+            if choice:
+                return (f"Resolution check submitted with value: {choice}.", None)
+            return ("Resolution check submitted without a specific answer.", None)
+
+        if status:
+            return (f"Resolution check status: {status}.", None)
+        if choice:
+            if choice in yes_values:
+                return ("Resolution check response: yes.", True)
+            if choice in no_values:
+                return ("Resolution check response: no.", False)
+            return (f"Resolution check response: {choice}.", None)
+        return (None, None)
 
     @staticmethod
     def _maybe_attach_summary(metadata_updates: Dict[str, Any], summary: Optional[str]) -> None:
