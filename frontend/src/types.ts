@@ -79,8 +79,7 @@ export interface MessageAttachmentMetadata {
 }
 
 export interface MessageMetadata {
-  actions?: string[];
-  suggestions?: string[];
+  suggested_actions?: string[];
   knowledge_hits?: KnowledgeHit[];
   confidence?: number;
   tool_results?: ToolCallMetadata[];

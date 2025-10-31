@@ -344,9 +344,10 @@ const parseFollowUpFormSubmission = (value: unknown): FollowUpFormSubmissionStat
 
 const mapMetadata = (metadata: Record<string, unknown>): MessageMetadata => {
   const enriched: MessageMetadata = { ...(metadata as MessageMetadata) };
+  const metadataRecord = metadata as Record<string, unknown>;
 
-  enriched.actions = coerceStringArray(metadata.actions);
-  enriched.suggestions = coerceStringArray(metadata.suggestions);
+  const suggestedSource = metadataRecord["suggested_actions"];
+  enriched.suggested_actions = coerceStringArray(suggestedSource);
   enriched.follow_up_questions = coerceStringArray(metadata.follow_up_questions);
   enriched.knowledge_hits = parseKnowledgeHits(metadata.knowledge_hits);
   enriched.tool_results = coerceToolResults(metadata.tool_results);
@@ -734,8 +735,7 @@ function ChatPage() {
 
       if (tempAssistantId) {
         const assistantMetadataRaw: Record<string, unknown> = {
-          suggestions: response.answer.suggestions,
-          actions: response.answer.actions,
+          suggested_actions: response.answer.suggested_actions,
           extra: response.answer.metadata,
           knowledge_hits: response.knowledge_hits,
         };

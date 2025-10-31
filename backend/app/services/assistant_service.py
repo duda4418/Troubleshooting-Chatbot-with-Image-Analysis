@@ -107,8 +107,7 @@ class AssistantService:
         if form_result.skip_response:
             answer = AssistantAnswer(
                 reply="",
-                suggestions=[],
-                actions=[],
+                suggested_actions=[],
                 follow_up_form=None,
                 confidence=None,
                 metadata={"client_hidden": True},
@@ -221,8 +220,7 @@ class AssistantService:
     ) -> ConversationMessage:
         extra_metadata = dict(answer.metadata or {})
         metadata = {
-            "suggestions": answer.suggestions,
-            "actions": answer.actions,
+            "suggested_actions": answer.suggested_actions,
             "follow_up_form": answer.follow_up_form.model_dump() if answer.follow_up_form else None,
             "confidence": answer.confidence,
             "knowledge_hits": [hit.model_dump() for hit in knowledge_hits],
@@ -304,24 +302,17 @@ class AssistantService:
         if self._already_escalated(prior_messages):
             return False
 
-        current_suggestions = {
-            item.strip().lower()
-            for item in answer.suggestions
-            if isinstance(item, str) and item.strip()
-        }
         current_actions = {
             item.strip().lower()
-            for item in answer.actions
+            for item in answer.suggested_actions
             if isinstance(item, str) and item.strip()
         }
 
         repeated = False
-        if current_suggestions and current_suggestions.issubset(history.normalized_suggestions()):
-            repeated = True
         if current_actions and current_actions.issubset(history.normalized_actions()):
             repeated = True
 
-        if not current_suggestions and not current_actions and history.total_recommendations() >= 1:
+        if not current_actions and history.total_recommendations() >= 1:
             repeated = True
 
         if not repeated:
@@ -330,8 +321,7 @@ class AssistantService:
         if self._recent_form_kind(prior_messages, "escalation", limit=2):
             return False
 
-        answer.suggestions = []
-        answer.actions = []
+        answer.suggested_actions = []
         if answer.follow_up_form is None:
             answer.follow_up_form = self._build_escalation_form()
 
@@ -349,7 +339,7 @@ class AssistantService:
     ) -> None:
         if answer.follow_up_form is not None:
             return
-        if not answer.suggestions and not answer.actions:
+        if not answer.suggested_actions:
             return
         if self._recent_form_kind(prior_messages, "feedback", limit=2):
             return

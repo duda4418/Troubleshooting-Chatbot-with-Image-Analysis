@@ -16,33 +16,24 @@ class RecommendationRecord:
 
 @dataclass
 class RecommendationHistory:
-    suggestions: Dict[str, RecommendationRecord] = field(default_factory=dict)
     actions: Dict[str, RecommendationRecord] = field(default_factory=dict)
-
-    def normalized_suggestions(self) -> set[str]:
-        return set(self.suggestions.keys())
 
     def normalized_actions(self) -> set[str]:
         return set(self.actions.keys())
 
     def total_recommendations(self) -> int:
-        return sum(record.count for record in self.suggestions.values()) + sum(
-            record.count for record in self.actions.values()
-        )
+        return sum(record.count for record in self.actions.values())
 
     def is_empty(self) -> bool:
-        return not self.suggestions and not self.actions
+        return not self.actions
 
     def context_summary(self) -> Optional[str]:
         if self.is_empty():
             return None
 
         lines: List[str] = []
-        if self.suggestions:
-            lines.append("Suggestions already attempted:")
-            lines.extend(self._format_records(self.suggestions.values()))
         if self.actions:
-            lines.append("Actions already executed:")
+            lines.append("Suggested actions already attempted:")
             lines.extend(self._format_records(self.actions.values()))
         return "\n".join(lines)
 
@@ -56,7 +47,7 @@ class RecommendationHistory:
 
 
 class RecommendationTracker:
-    """Aggregate past assistant suggestions and actions for a session."""
+    """Aggregate past assistant suggested actions for a session."""
 
     def __init__(self, message_repository: ConversationMessageRepository, *, fetch_limit: int = 200) -> None:
         self._message_repository = message_repository
@@ -72,9 +63,28 @@ class RecommendationTracker:
             if message.role != MessageRole.ASSISTANT:
                 continue
             metadata = message.message_metadata or {}
-            self._record(history.suggestions, metadata.get("suggestions"))
-            self._record(history.actions, metadata.get("actions"))
+            actions = self._collect_actions(metadata)
+            if actions:
+                self._record(history.actions, actions)
         return history
+
+    @staticmethod
+    def _collect_actions(metadata) -> List[str]:
+        combined: List[str] = []
+        if not isinstance(metadata, dict):
+            return combined
+
+        raw = metadata.get("suggested_actions")
+        if isinstance(raw, list):
+            for item in raw:
+                text = str(item).strip()
+                if text:
+                    combined.append(text)
+        elif isinstance(raw, str):
+            text = raw.strip()
+            if text:
+                combined.append(text)
+        return combined
 
     @staticmethod
     def _record(store: Dict[str, RecommendationRecord], values) -> None:

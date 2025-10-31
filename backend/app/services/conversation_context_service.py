@@ -63,13 +63,9 @@ class ConversationContextService:
         if reply:
             parts.append(f"Assistant reply: {reply}")
 
-        suggestions = self._ensure_list(metadata.get("suggestions"))
-        if suggestions:
-            parts.append("Suggestions: " + "; ".join(suggestions))
-
-        actions = self._ensure_list(metadata.get("actions"))
+        actions = self._collect_actions(metadata)
         if actions:
-            parts.append("Actions: " + "; ".join(actions))
+            parts.append("Suggested actions: " + "; ".join(actions))
 
         follow_up_form = metadata.get("follow_up_form")
         if isinstance(follow_up_form, dict):
@@ -131,6 +127,20 @@ class ConversationContextService:
         text = str(value).strip()
         return [text] if text else []
 
+    def _collect_actions(self, metadata: dict) -> List[str]:
+        combined: List[str] = []
+        seen: set[str] = set()
+
+        source = metadata.get("suggested_actions")
+        for item in self._ensure_list(source):
+            lowered = item.lower()
+            if lowered in seen:
+                continue
+            seen.add(lowered)
+            combined.append(item)
+
+        return combined
+
     @staticmethod
     def _trim_events(events: List[str], limit: int = 30) -> List[str]:
         if len(events) <= limit:
@@ -142,7 +152,7 @@ class ConversationContextService:
         if not isinstance(metadata, dict):
             return None
 
-        ignore_keys = {"suggestions", "actions", "follow_up_form"}
+        ignore_keys = {"suggested_actions", "follow_up_form"}
         condensed: dict[str, object] = {}
 
         for key, value in metadata.items():

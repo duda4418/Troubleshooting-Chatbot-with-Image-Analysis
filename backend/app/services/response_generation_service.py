@@ -43,10 +43,10 @@ class ResponseGenerationService:
     def _invoke_openai(self, request: ResponseGenerationRequest):
         system_prompt = (
             "You are a friendly troubleshooting assistant. Stay practical, concise, and informal without repeating yourself. "
-            "Use the supplied history of attempted suggestions and actions to avoid repeating them. "
+            "Use the supplied history of attempted suggested actions to avoid repeating them. "
             "If you genuinely have no fresh ideas, acknowledge it and ask the user—via a yes/no escalation form—whether they want to hand off to a human specialist. "
             "When you are unsure, request clarifying details before guessing. Only include a follow_up_form when you truly need that confirmation or consent. "
-            "Respond ONLY with raw JSON (no code fences) containing: reply (string), suggestions (array of strings), actions (array of strings), "
+            "Respond ONLY with raw JSON (no code fences) containing: reply (string), suggested_actions (array of strings), "
             "follow_up_form (object or null), confidence (float between 0 and 1)."
         )
 
@@ -105,8 +105,8 @@ class ResponseGenerationService:
         payload = self._coerce_json(raw_text)
 
         reply = str(payload.get("reply") or raw_text or "I ran into an issue generating a reply.")
-        suggestions = self._ensure_list_of_str(payload.get("suggestions"))
-        actions = self._ensure_list_of_str(payload.get("actions"))
+        action_payload = payload.get("suggested_actions")
+        suggested_actions = self._ensure_list_of_str(action_payload)
         follow_up_form = self._parse_form(payload.get("follow_up_form"))
 
         confidence_value = payload.get("confidence")
@@ -122,13 +122,12 @@ class ResponseGenerationService:
             k: v
             for k, v in payload.items()
             if k
-            not in {"reply", "suggestions", "actions", "follow_up_form", "confidence"}
+            not in {"reply", "suggested_actions", "follow_up_form", "confidence"}
         }
 
         return AssistantAnswer(
             reply=reply,
-            suggestions=suggestions,
-            actions=actions,
+            suggested_actions=suggested_actions,
             follow_up_form=follow_up_form,
             confidence=confidence,
             metadata=metadata,
@@ -215,7 +214,14 @@ class ResponseGenerationService:
     @staticmethod
     def _ensure_list_of_str(value) -> List[str]:
         if isinstance(value, list):
-            return [str(item) for item in value if item]
+            cleaned: List[str] = []
+            for item in value:
+                if not isinstance(item, str):
+                    item = str(item)
+                text = item.strip()
+                if text:
+                    cleaned.append(text)
+            return cleaned
         if value:
-            return [str(value)]
+            return [str(value).strip()]
         return []

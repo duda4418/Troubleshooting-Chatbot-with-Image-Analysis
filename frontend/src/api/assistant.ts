@@ -49,8 +49,7 @@ export interface AssistantFormPayload {
 
 export interface AssistantAnswerPayload {
   reply: string;
-  suggestions: string[];
-  actions: string[];
+  suggested_actions: string[];
   follow_up_form?: AssistantFormPayload | null;
   confidence?: number | null;
   metadata: Record<string, unknown>;

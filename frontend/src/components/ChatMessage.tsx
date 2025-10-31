@@ -107,8 +107,8 @@ const ChatMessageCard = ({ message, isBusy = false, onSubmitForm, onDismissForm 
 
         {attachments ? <MessageAttachmentGrid attachments={attachments} /> : null}
 
-        {message.metadata?.actions?.length ? (
-          <MessageActionList actions={message.metadata.actions} />
+        {message.metadata?.suggested_actions?.length ? (
+          <MessageActionList suggestedActions={message.metadata.suggested_actions} />
         ) : null}
 
         {message.metadata?.tool_results?.length ? (

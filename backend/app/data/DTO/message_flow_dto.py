@@ -48,8 +48,7 @@ class ResponseGenerationRequest(BaseModel):
 
 class AssistantAnswer(BaseModel):
     reply: str
-    suggestions: List[str] = Field(default_factory=list)
-    actions: List[str] = Field(default_factory=list)
+    suggested_actions: List[str] = Field(default_factory=list)
     follow_up_form: Optional[GeneratedForm] = None
     confidence: Optional[float] = None
     metadata: Dict[str, Any] = Field(default_factory=dict)
