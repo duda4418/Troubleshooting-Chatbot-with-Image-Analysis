@@ -1,0 +1,262 @@
+{
+  "dirty": {
+    "causes": [
+      "Low wash temperature (<55°C)",
+      "Incorrect cycle (Eco/Quick instead of Intensive)",
+      "Under-dosing of detergent or device product",
+      "Clogged spray arms or filter",
+      "Overloaded racks blocking spray rotation",
+      "Heater element or temperature sensor malfunction"
+    ],
+    "actions": [
+      {"type": "setting", "target": "temperature", "value": "≥60°C"},
+      {"type": "setting", "target": "cycle", "value": "intensive_or_hygiene"},
+      {"type": "device", "target": "dosage", "value": "increase_one_step"},
+      {"type": "maintenance", "target": "filter", "value": "clean_and_reinstall"},
+      {"type": "maintenance", "target": "spray_arms", "value": "check_rotation_and_clean_nozzles"},
+      {"type": "placement", "target": "device", "value": "attach_to_upper_rack_front"},
+      {"type": "loading", "target": "rack", "value": "avoid_blocking_spray_paths"}
+    ],
+    "alternatives": [
+      [
+        {"type": "setting", "target": "cycle", "value": "normal_plus_extra_rinse"},
+        {"type": "device", "target": "mode", "value": "boost_clean"},
+        {"type": "loading", "target": "rack", "value": "raise_upper_rack_if_adjustable"}
+      ],
+      [
+        {"type": "maintenance", "target": "heater", "value": "run_self_test_if_supported"},
+        {"type": "maintenance", "target": "filter", "value": "soak_in_hot_water"},
+        {"type": "setting", "target": "temperature", "value": "≥65°C_if_safe_for_items"}
+      ]
+    ],
+    "severity": "medium"
+  },
+
+  "spots": {
+    "causes": [
+      "Low rinse aid setting",
+      "Hard water minerals not neutralized",
+      "Rinse aid dispenser empty or malfunctioning",
+      "Salt reservoir empty or valve blocked",
+      "Improper drying or door opened too early"
+    ],
+    "actions": [
+      {"type": "setting", "target": "rinse_aid", "value": "level_3_or_higher"},
+      {"type": "setting", "target": "salt", "value": "refill_and_check_cap"},
+      {"type": "device", "target": "mode", "value": "hard_water_mode"},
+      {"type": "device", "target": "dosage", "value": "normal"},
+      {"type": "drying", "target": "door", "value": "keep_closed_until_cycle_end"}
+    ],
+    "alternatives": [
+      [
+        {"type": "setting", "target": "rinse_aid", "value": "level_4"},
+        {"type": "setting", "target": "salt_hardness", "value": "match_local_water_hardness"},
+        {"type": "setting", "target": "cycle", "value": "normal_with_extra_rinse"}
+      ],
+      [
+        {"type": "maintenance", "target": "rinse_aid_dispenser", "value": "clean_nozzle_and_check_flow"},
+        {"type": "device", "target": "dosage", "value": "increase_one_step"},
+        {"type": "maintenance", "target": "spray_arms", "value": "flush_with_vinegar_solution"}
+      ]
+    ],
+    "severity": "low"
+  },
+
+  "residue": {
+    "causes": [
+      "Overloading the racks, blocking water flow",
+      "Powder detergent not fully dissolved in cold cycle",
+      "Excess detergent causing re-deposition",
+      "Low water temperature (<50°C)",
+      "Blocked filter or partially clogged arms"
+    ],
+    "actions": [
+      {"type": "loading", "target": "rack", "value": "space_items_2cm_apart"},
+      {"type": "device", "target": "dosage", "value": "standard_or_slightly_lower"},
+      {"type": "setting", "target": "cycle", "value": "normal_or_intensive"},
+      {"type": "maintenance", "target": "filter", "value": "clean_thoroughly"},
+      {"type": "maintenance", "target": "detergent_dispenser", "value": "wipe_and_remove_residues"}
+    ],
+    "alternatives": [
+      [
+        {"type": "setting", "target": "temperature", "value": "≥55°C"},
+        {"type": "device", "target": "mode", "value": "anti_residue"},
+        {"type": "loading", "target": "rack", "value": "angle_bowls_and_cups_for_drainage"}
+      ],
+      [
+        {"type": "device", "target": "dosage", "value": "switch_to_liquid_or_gel"},
+        {"type": "maintenance", "target": "spray_arms", "value": "remove_and_clean_nozzles"},
+        {"type": "setting", "target": "pre_rinse", "value": "enable_if_available"}
+      ]
+    ],
+    "severity": "medium"
+  },
+
+  "cloudy_glass": {
+    "causes": [
+      "High temperature with soft water leading to etching",
+      "Excess rinse aid dosage",
+      "Hard water film or calcium deposits",
+      "Glassware not dishwasher safe"
+    ],
+    "actions": [
+      {"type": "setting", "target": "temperature", "value": "50–55°C"},
+      {"type": "setting", "target": "rinse_aid", "value": "level_1_or_low"},
+      {"type": "device", "target": "mode", "value": "glass_protect"},
+      {"type": "loading", "target": "rack", "value": "top_rack_only_for_glass"},
+      {"type": "setting", "target": "salt", "value": "verify_and_refill_if_needed"}
+    ],
+    "alternatives": [
+      [
+        {"type": "device", "target": "dosage", "value": "decrease_one_step"},
+        {"type": "setting", "target": "cycle", "value": "eco_or_glass_cycle"},
+        {"type": "maintenance", "target": "glassware", "value": "hand_wash_once_with_vinegar_then_retry"}
+      ],
+      [
+        {"type": "setting", "target": "rinse_aid", "value": "disable_temporarily"},
+        {"type": "loading", "target": "rack", "value": "separate_glasses_to_avoid_contact"},
+        {"type": "device", "target": "mode", "value": "soft_water_guard"}
+      ]
+    ],
+    "severity": "low"
+  },
+
+  "greasy": {
+    "causes": [
+      "Too low wash temperature",
+      "Cycle too short for grease breakdown",
+      "Insufficient detergent or device output",
+      "Grease buildup in filters or arms"
+    ],
+    "actions": [
+      {"type": "setting", "target": "temperature", "value": "≥65°C"},
+      {"type": "setting", "target": "cycle", "value": "intensive"},
+      {"type": "device", "target": "dosage", "value": "increase_one_step"},
+      {"type": "maintenance", "target": "filter", "value": "clean_with_hot_water"},
+      {"type": "maintenance", "target": "spray_arms", "value": "clean_with_vinegar_solution"}
+    ],
+    "alternatives": [
+      [
+        {"type": "setting", "target": "cycle", "value": "heavy_with_hot_rinse"},
+        {"type": "device", "target": "mode", "value": "degrease_boost"},
+        {"type": "loading", "target": "rack", "value": "position_pans_face_down_near_lower_spray"}
+      ],
+      [
+        {"type": "maintenance", "target": "filter", "value": "soak_in_degreaser"},
+        {"type": "maintenance", "target": "interior", "value": "run_empty_hot_cycle_with_cleaner"},
+        {"type": "device", "target": "dosage", "value": "use_max_for_one_cycle_then_return_to_normal"}
+      ]
+    ],
+    "severity": "medium"
+  },
+
+  "streaks": {
+    "causes": [
+      "Overdosing rinse aid",
+      "Water too soft",
+      "Excess detergent foam",
+      "Fast drying or door opened too early"
+    ],
+    "actions": [
+      {"type": "setting", "target": "rinse_aid", "value": "reduce_to_level_1"},
+      {"type": "setting", "target": "detergent", "value": "use_lower_amount"},
+      {"type": "device", "target": "mode", "value": "standard"},
+      {"type": "drying", "target": "door", "value": "wait_15min_after_cycle"}
+    ],
+    "alternatives": [
+      [
+        {"type": "setting", "target": "rinse_aid", "value": "disable_temporarily"},
+        {"type": "setting", "target": "cycle", "value": "normal_with_extended_dry"},
+        {"type": "device", "target": "dosage", "value": "decrease_one_step"}
+      ],
+      [
+        {"type": "setting", "target": "water_softener", "value": "increase_hardness_setting"},
+        {"type": "loading", "target": "rack", "value": "tilt_glasses_for_better_shedding"},
+        {"type": "maintenance", "target": "door_vent", "value": "inspect_for_blockage"}
+      ]
+    ],
+    "severity": "low"
+  },
+
+  "white_film": {
+    "causes": [
+      "High calcium or limescale in water",
+      "Salt system not regenerating properly",
+      "Low rinse aid dosage",
+      "Repeated short cycles"
+    ],
+    "actions": [
+      {"type": "setting", "target": "salt", "value": "refill_and_clean_cap"},
+      {"type": "device", "target": "mode", "value": "limescale_clean_mode"},
+      {"type": "maintenance", "target": "filter", "value": "clean_and_rinse"},
+      {"type": "setting", "target": "cycle", "value": "run_hot_clean_cycle_with_vinegar"}
+    ],
+    "alternatives": [
+      [
+        {"type": "setting", "target": "rinse_aid", "value": "increase_to_level_3"},
+        {"type": "setting", "target": "salt_hardness", "value": "verify_against_local_ppm"},
+        {"type": "device", "target": "dosage", "value": "increase_one_step"}
+      ],
+      [
+        {"type": "maintenance", "target": "interior", "value": "descale_with_citric_acid_cycle"},
+        {"type": "maintenance", "target": "spray_arms", "value": "soak_to_remove_scale"},
+        {"type": "setting", "target": "cycle", "value": "avoid_quick_cycles_for_a_few_runs"}
+      ]
+    ],
+    "severity": "high"
+  },
+
+  "odour": {
+    "causes": [
+      "Trapped food in filter or seals",
+      "Bacterial growth due to infrequent use",
+      "Residual water stagnation",
+      "Grease in hoses or drain"
+    ],
+    "actions": [
+      {"type": "maintenance", "target": "filter", "value": "deep_clean"},
+      {"type": "maintenance", "target": "door_seal", "value": "wipe_with_vinegar"},
+      {"type": "setting", "target": "cycle", "value": "empty_hot_rinse_cycle"},
+      {"type": "device", "target": "mode", "value": "odor_removal"}
+    ],
+    "alternatives": [
+      [
+        {"type": "maintenance", "target": "drain_area", "value": "clean_and_flush"},
+        {"type": "setting", "target": "sanitize", "value": "run_high_temp_sanitize_cycle"},
+        {"type": "maintenance", "target": "filter", "value": "dry_fully_before_reinstall"}
+      ],
+      [
+        {"type": "maintenance", "target": "hose", "value": "inspect_for_kink_or_buildup"},
+        {"type": "maintenance", "target": "spray_arms", "value": "clean_with_baking_soda_solution"},
+        {"type": "device", "target": "mode", "value": "odor_guard_for_3_cycles"}
+      ]
+    ],
+    "severity": "medium"
+  },
+
+  "inconclusive": {
+    "causes": [
+      "Image unclear or mixed signals",
+      "Camera glare or poor lighting",
+      "Partial dishwasher view"
+    ],
+    "actions": [
+      {"type": "request", "target": "capture", "value": "retake_with_full_rack_visible"},
+      {"type": "tip", "target": "lighting", "value": "use_room_light_no_flash"},
+      {"type": "guide", "target": "angle", "value": "capture_top_and_bottom_rack"}
+    ],
+    "alternatives": [
+      [
+        {"type": "request", "target": "capture", "value": "include_close_up_of_glass_or_plate"},
+        {"type": "tip", "target": "stability", "value": "hold_phone_two_hands"},
+        {"type": "guide", "target": "distance", "value": "fill_frame_80_percent"}
+      ],
+      [
+        {"type": "request", "target": "capture", "value": "show_device_attachment_position"},
+        {"type": "tip", "target": "orientation", "value": "portrait_mode_preferred"},
+        {"type": "guide", "target": "multiple", "value": "upload_two_photos_if_possible"}
+      ]
+    ],
+    "severity": "info"
+  }
+}
