@@ -880,7 +880,7 @@ function ChatPage() {
             aria-label="Close conversation list"
           />
         ) : null}
-        <main className="relative flex-1 px-4 pb-20 pt-6 sm:px-6 sm:pb-24 lg:px-12">
+  <main className="relative flex-1 px-4 pb-10 pt-6 sm:px-6 sm:pb-12 lg:px-12">
           <ConversationView
             messages={messages}
             loading={isLoadingMessages}

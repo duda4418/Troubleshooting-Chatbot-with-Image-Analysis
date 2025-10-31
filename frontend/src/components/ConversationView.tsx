@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import ChatComposer from "./ChatComposer";
 import ConversationTimeline from "./conversation/ConversationTimeline";
 import type { FollowUpFormSubmission } from "./followup-form";
@@ -31,105 +31,137 @@ const ConversationView = ({
   onSubmitFeedback,
   feedbackSubmitted = false,
 }: ConversationViewProps) => {
-  const bottomRef = useRef<HTMLDivElement | null>(null);
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const composerWrapperRef = useRef<HTMLDivElement | null>(null);
-  const previousComposerHeight = useRef<number | null>(null);
-  const [isAtBottom, setIsAtBottom] = useState(true);
-  const initialScrollRef = useRef(true);
+  const bottomMarkerRef = useRef<HTMLDivElement | null>(null);
   const lastSessionIdRef = useRef<string | null>(null);
+  const initialScrollRef = useRef(true);
+  const autoScrollRef = useRef(true);
+  const [composerHeight, setComposerHeight] = useState(0);
+
+  useEffect(() => {
+    const marker = bottomMarkerRef.current;
+    if (!marker) {
+      return;
+    }
+
+    const margin = Math.max(composerHeight + 24, 96);
+    marker.style.scrollMarginBottom = `${margin}px`;
+  }, [composerHeight]);
 
   useEffect(() => {
     const currentSession = activeSessionId ?? null;
     if (lastSessionIdRef.current !== currentSession) {
       lastSessionIdRef.current = currentSession;
       initialScrollRef.current = true;
+      autoScrollRef.current = true;
     }
   }, [activeSessionId]);
 
-  useEffect(() => {
-    if (!bottomRef.current) {
+  const scrollToBottom = useCallback((behavior: ScrollBehavior = "auto") => {
+    const container = scrollContainerRef.current;
+    const marker = bottomMarkerRef.current;
+    if (!container) {
+      return;
+    }
+
+    if (marker) {
+      requestAnimationFrame(() => {
+        marker.scrollIntoView({ behavior, block: "end" });
+      });
+      return;
+    }
+
+    const runScroll = () => {
+      container.scrollTo({
+        top: container.scrollHeight,
+        behavior,
+      });
+    };
+
+    if (behavior === "smooth") {
+      requestAnimationFrame(runScroll);
+      return;
+    }
+
+    requestAnimationFrame(() => {
+      runScroll();
+      requestAnimationFrame(runScroll);
+    });
+  }, []);
+
+  const handleScroll = useCallback(() => {
+    const container = scrollContainerRef.current;
+    if (!container) {
+      return;
+    }
+
+    const threshold = 80;
+    const distanceFromBottom =
+      container.scrollHeight - container.scrollTop - container.clientHeight;
+    autoScrollRef.current = distanceFromBottom <= threshold;
+  }, []);
+
+  useLayoutEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container) {
       return;
     }
 
     if (initialScrollRef.current) {
-      bottomRef.current.scrollIntoView({ behavior: "auto" });
       initialScrollRef.current = false;
+      scrollToBottom("auto");
       return;
     }
 
-    if (isAtBottom) {
-      bottomRef.current.scrollIntoView({ behavior: "auto" });
+    if (autoScrollRef.current) {
+      scrollToBottom(messages.length > 1 ? "smooth" : "auto");
     }
-  }, [messages, isAtBottom]);
+  }, [messages, scrollToBottom]);
 
   useEffect(() => {
-    if (typeof IntersectionObserver === "undefined") {
-      return undefined;
-    }
-    const sentinel = bottomRef.current;
-    if (!sentinel) {
-      return undefined;
-    }
+    handleScroll();
+  }, [handleScroll, messages.length]);
 
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry) {
-          setIsAtBottom(entry.isIntersecting);
-        }
-      },
-      {
-        root: null,
-        threshold: 0,
-        rootMargin: "0px 0px -120px 0px"
-      }
-    );
-
-    observer.observe(sentinel);
-    return () => observer.disconnect();
-  }, []);
+  const wasLoadingRef = useRef(loading);
 
   useEffect(() => {
+    if (wasLoadingRef.current && !loading) {
+      autoScrollRef.current = true;
+      initialScrollRef.current = false;
+      scrollToBottom("auto");
+    }
+    wasLoadingRef.current = loading;
+  }, [loading, scrollToBottom]);
+
+  useEffect(() => {
+    const node = composerWrapperRef.current;
+    if (!node) {
+      setComposerHeight(0);
+      return;
+    }
+
+    const updateHeight = () => {
+      setComposerHeight(node.getBoundingClientRect().height);
+      handleScroll();
+    };
+
+    updateHeight();
+
     if (typeof ResizeObserver === "undefined") {
       return undefined;
     }
-    const node = composerWrapperRef.current;
-    if (!node) {
-      return undefined;
-    }
-
-    const handleResize = () => {
-      if (!isAtBottom || typeof window === "undefined") {
-        previousComposerHeight.current = null;
-        return;
-      }
-
-      const currentHeight = node.getBoundingClientRect().height;
-      if (previousComposerHeight.current === null) {
-        previousComposerHeight.current = currentHeight;
-        return;
-      }
-
-      const delta = currentHeight - previousComposerHeight.current;
-      previousComposerHeight.current = currentHeight;
-
-      if (Math.abs(delta) < 1) {
-        return;
-      }
-
-      window.scrollBy({ top: delta });
-    };
 
     const observer = new ResizeObserver(() => {
-      handleResize();
+      updateHeight();
     });
 
     observer.observe(node);
-    handleResize();
 
     return () => {
       observer.disconnect();
     };
-  }, [isAtBottom]);
+  }, [canCompose, activeSessionId, handleScroll]);
 
   const handleSend = useCallback(
     async (payload: {
@@ -202,14 +234,24 @@ const ConversationView = ({
 
   return (
     <section className="flex h-full flex-col">
-      <ConversationTimeline
-        ref={bottomRef}
-        messages={messages}
-        loading={loading}
-        isBusy={isSending}
-        onSubmitForm={handleFormSubmit}
-        onDismissForm={handleFormDismiss}
-      />
+      <div className="flex flex-1 flex-col min-h-0">
+        <div
+          ref={scrollContainerRef}
+          onScroll={handleScroll}
+          className="flex-1 overflow-y-auto scroll-smooth"
+          data-testid="conversation-scroll-area"
+        >
+          <ConversationTimeline
+            messages={messages}
+            loading={loading}
+            isBusy={isSending}
+            onSubmitForm={handleFormSubmit}
+            onDismissForm={handleFormDismiss}
+            bottomPadding={composerHeight + 24}
+            bottomRef={bottomMarkerRef}
+          />
+        </div>
+      </div>
 
       <div
         className="sticky bottom-1 z-30 mt-auto bg-gradient-to-t from-brand-background via-brand-background/95 to-transparent px-4 pb-2 pt-3 sm:bottom-1 sm:px-6 lg:bottom-2 lg:px-8"

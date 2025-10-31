@@ -1,4 +1,4 @@
-import { ForwardedRef, forwardRef } from "react";
+import { memo, RefObject } from "react";
 import clsx from "clsx";
 import ChatMessageCard from "../ChatMessage";
 import type { FollowUpFormSubmission } from "../followup-form";
@@ -11,16 +11,31 @@ interface ConversationTimelineProps {
   isBusy?: boolean;
   onSubmitForm?: (message: ChatMessage, form: FollowUpFormDescriptor, submission: FollowUpFormSubmission) => Promise<void> | void;
   onDismissForm?: (message: ChatMessage, form: FollowUpFormDescriptor) => Promise<void> | void;
+  bottomPadding?: number;
+  bottomRef?: RefObject<HTMLDivElement>;
 }
 
-const ConversationTimeline = forwardRef<HTMLDivElement, ConversationTimelineProps>(
-  ({ messages, loading = false, className, isBusy = false, onSubmitForm, onDismissForm }, ref: ForwardedRef<HTMLDivElement>) => {
-    const visibleMessages = messages.filter(
-      (message) => message.role !== "tool" && message.metadata?.client_hidden !== true
-    );
+const ConversationTimeline = ({
+  messages,
+  loading = false,
+  className,
+  isBusy = false,
+  onSubmitForm,
+  onDismissForm,
+  bottomPadding = 96,
+  bottomRef,
+}: ConversationTimelineProps) => {
+  const visibleMessages = messages.filter(
+    (message) => message.role !== "tool" && message.metadata?.client_hidden !== true
+  );
 
-    return (
-    <div className={clsx("flex-1 px-6 pb-24 pt-6", className)}>
+  return (
+    <div
+      className={clsx("px-6 pt-6", className)}
+      style={{ paddingBottom: bottomPadding }}
+      role="log"
+      aria-live="polite"
+    >
       <div className="mx-auto flex w-full max-w-3xl flex-col space-y-6">
         {loading ? (
           <div className="space-y-3">
@@ -50,14 +65,10 @@ const ConversationTimeline = forwardRef<HTMLDivElement, ConversationTimelineProp
             </div>
           </div>
         ) : null}
-
-        <div ref={ref} />
+        <div ref={bottomRef} aria-hidden />
       </div>
     </div>
-    );
-  }
-);
+  );
+};
 
-ConversationTimeline.displayName = "ConversationTimeline";
-
-export default ConversationTimeline;
+export default memo(ConversationTimeline);
