@@ -1,0 +1,38 @@
+# Python artifacts
+__pycache__/
+*.py[cod]
+*.pyd
+*.log
+*.db
+*.sqlite3
+*.egg-info/
+
+# Build outputs
+dist/
+build/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Version control / editors
+.git/
+.gitignore
+.gitattributes
+.idea/
+.vscode/
+*.swp
+
+# Operating system trash
+.DS_Store
+Thumbs.db
+
+# Environment files (ship template only)
+.env
+.env.*
+!.env.example
+
+# Local scripts and logs not needed in image
+logs/
+scripts/
