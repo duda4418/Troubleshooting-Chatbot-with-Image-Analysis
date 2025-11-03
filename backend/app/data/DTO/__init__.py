@@ -21,6 +21,7 @@ from .assistant_api_dto import (
     ConversationSessionRead,
     SessionFeedbackRequest,
 )
+from .assistant_metadata_dto import AssistantMessageMetadata
 from .conversation_context_dto import (
     ConversationAIContext,
 )
@@ -55,6 +56,7 @@ __all__ = [
     "ConversationMessageRead",
     "ConversationSessionRead",
     "SessionFeedbackRequest",
+    "AssistantMessageMetadata",
     "ConversationAIContext",
     "ImageAnalysisRequest",
     "ImageAnalysisResponse",

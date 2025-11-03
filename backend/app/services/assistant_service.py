@@ -6,9 +6,10 @@ from typing import Any, Dict, List, Optional, Tuple
 from uuid import UUID, uuid4
 
 from app.data.DTO import (
+    AssistantAnswer,
     AssistantMessageRequest,
     AssistantMessageResponse,
-    AssistantAnswer,
+    AssistantMessageMetadata,
     ConversationMessageRead,
     ConversationSessionRead,
     GeneratedForm,
@@ -251,35 +252,11 @@ class AssistantService:
         answer: AssistantAnswer,
         knowledge_hits: List[KnowledgeHit],
     ) -> ConversationMessage:
-        extra_metadata = dict(answer.metadata or {})
-        metadata = {
-            "suggested_actions": answer.suggested_actions,
-            "follow_up_form": answer.follow_up_form.model_dump() if answer.follow_up_form else None,
-            "confidence": answer.confidence,
-            "knowledge_hits": [hit.model_dump() for hit in knowledge_hits],
-        }
-        client_hidden = extra_metadata.pop("client_hidden", None)
-        if isinstance(client_hidden, bool):
-            metadata["client_hidden"] = client_hidden
-
-        follow_up_type = extra_metadata.pop("follow_up_type", None)
-        if isinstance(follow_up_type, str) and follow_up_type.strip():
-            metadata["follow_up_type"] = follow_up_type.strip()
-
-        follow_up_reason = extra_metadata.pop("follow_up_reason", None)
-        if isinstance(follow_up_reason, str) and follow_up_reason.strip():
-            metadata["follow_up_reason"] = follow_up_reason.strip()
-
-        form_kind_extra = extra_metadata.get("form_kind")
-        if isinstance(form_kind_extra, str):
-            metadata["form_kind"] = form_kind_extra
-
-        summary_extra = extra_metadata.get("follow_up_form_summary")
-        if isinstance(summary_extra, str):
-            metadata["follow_up_form_summary"] = summary_extra
-
-        if extra_metadata:
-            metadata["extra"] = extra_metadata
+        metadata_model = AssistantMessageMetadata.from_answer(
+            answer,
+            knowledge_hits=knowledge_hits,
+        )
+        metadata = metadata_model.to_message_metadata()
 
         message = ConversationMessage(
             session_id=session_id,
