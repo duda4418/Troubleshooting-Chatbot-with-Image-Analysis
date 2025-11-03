@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import random
 from typing import Any, Dict, List, Optional, Tuple
 from uuid import UUID, uuid4
 
@@ -61,6 +62,8 @@ class AssistantService:
         self._response_service = response_service
         self._knowledge_tool = knowledge_tool
         self._ticket_tool = ticket_tool
+        self._random = random.Random()
+        self._feedback_form_probability = 0.25
 
     async def handle_message(self, request: AssistantMessageRequest) -> AssistantMessageResponse:
         session = await self._get_or_create_session(request.session_id)
@@ -259,9 +262,9 @@ class AssistantService:
         if isinstance(client_hidden, bool):
             metadata["client_hidden"] = client_hidden
 
-        follow_up_action = extra_metadata.pop("follow_up_action", None)
-        if isinstance(follow_up_action, str) and follow_up_action.strip():
-            metadata["follow_up_action"] = follow_up_action.strip()
+        follow_up_type = extra_metadata.pop("follow_up_type", None)
+        if isinstance(follow_up_type, str) and follow_up_type.strip():
+            metadata["follow_up_type"] = follow_up_type.strip()
 
         follow_up_reason = extra_metadata.pop("follow_up_reason", None)
         if isinstance(follow_up_reason, str) and follow_up_reason.strip():
@@ -332,50 +335,46 @@ class AssistantService:
         *,
         prior_messages: List[ConversationMessage],
     ) -> None:
-        action = (answer.follow_up_action or "").strip().lower()
-        if not action or action == "none":
-            answer.follow_up_action = None
+        follow_up_type = (answer.follow_up_type or "").strip().lower()
+        metadata = dict(answer.metadata or {})
+
+        if not follow_up_type or follow_up_type == "none":
+            metadata.pop("follow_up_type", None)
+            answer.follow_up_type = None
+            if answer.follow_up_reason:
+                metadata["follow_up_reason"] = answer.follow_up_reason
+            answer.follow_up_form = None
+            answer.metadata = metadata
             return
 
-        metadata = dict(answer.metadata or {})
-        metadata["follow_up_action"] = action
+        metadata["follow_up_type"] = follow_up_type
         if answer.follow_up_reason:
             metadata["follow_up_reason"] = answer.follow_up_reason
 
-        if action == "escalation":
+        if follow_up_type == "escalation":
             if self._recent_form_kind(prior_messages, "escalation", limit=1):
                 # Avoid spamming escalation prompts
-                metadata.pop("follow_up_action", None)
+                metadata.pop("follow_up_type", None)
                 metadata.pop("follow_up_reason", None)
-                answer.follow_up_action = None
                 answer.follow_up_form = None
+                answer.follow_up_type = None
             else:
                 metadata.setdefault("escalation", {"status": "recommended"})
                 metadata["form_kind"] = "escalation"
                 if answer.follow_up_form is None:
                     answer.follow_up_form = self._build_escalation_form()
-        elif action == "resolution_check":
+        elif follow_up_type == "resolution_check":
             if self._recent_form_kind(prior_messages, "resolution_check", limit=1):
-                metadata.pop("follow_up_action", None)
+                metadata.pop("follow_up_type", None)
                 metadata.pop("follow_up_reason", None)
-                answer.follow_up_action = None
                 answer.follow_up_form = None
+                answer.follow_up_type = None
             else:
                 metadata["form_kind"] = "resolution_check"
                 if answer.follow_up_form is None:
                     answer.follow_up_form = FeedbackFlowService.build_resolution_form()
-        elif action == "feedback":
-            if self._recent_form_kind(prior_messages, "feedback", limit=1):
-                metadata.pop("follow_up_action", None)
-                metadata.pop("follow_up_reason", None)
-                answer.follow_up_action = None
-                answer.follow_up_form = None
-            else:
-                metadata["form_kind"] = "feedback"
-                if answer.follow_up_form is None:
-                    answer.follow_up_form = FeedbackFlowService.build_feedback_form()
         else:
-            metadata.setdefault("form_kind", action)
+            metadata.setdefault("form_kind", follow_up_type)
 
         answer.metadata = metadata
 
@@ -387,23 +386,25 @@ class AssistantService:
     ) -> None:
         if answer.follow_up_form is not None:
             return
-        if (answer.follow_up_action or "").strip():
+        if (answer.follow_up_type or "").strip():
             return
         if not answer.suggested_actions:
             return
         if self._recent_form_kind(prior_messages, "feedback", limit=3):
             return
+        if self._random.random() > self._feedback_form_probability:
+            return
 
         metadata = dict(answer.metadata or {})
         metadata["form_kind"] = "feedback"
-        metadata["follow_up_action"] = "feedback"
+        metadata["follow_up_type"] = "feedback"
         metadata.setdefault(
             "follow_up_reason",
             "Quick check after new troubleshooting steps",
         )
 
         answer.follow_up_form = FeedbackFlowService.build_feedback_form()
-        answer.follow_up_action = "feedback"
+        answer.follow_up_type = "feedback"
         answer.follow_up_reason = metadata["follow_up_reason"]
         answer.metadata = metadata
 

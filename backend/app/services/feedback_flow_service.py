@@ -103,7 +103,7 @@ class FeedbackFlowService:
             confidence=None,
             metadata={
                 "form_kind": "resolution_check",
-                "follow_up_action": "resolution_check",
+                "follow_up_type": "resolution_check",
                 "follow_up_reason": "Positive feedback checkpoint",
             },
         )

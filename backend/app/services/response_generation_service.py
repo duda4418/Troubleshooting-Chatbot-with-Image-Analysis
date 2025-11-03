@@ -42,16 +42,19 @@ class ResponseGenerationService:
 
     def _invoke_openai(self, request: ResponseGenerationRequest):
         system_prompt = (
-            "You are a friendly troubleshooting assistant. Stay practical, concise, and informal without repeating yourself. "
+            "You are a friendly dishwasher troubleshooting assistant. Stay practical, concise, and informal without repeating yourself. "
             "Use the supplied history of attempted suggested actions to avoid repeating them. "
             "If you genuinely have no fresh ideas, acknowledge it and propose escalating to a human specialist. "
             "When you are unsure, request clarifying details before guessing. "
-            "Follow-up guidance: set follow_up.action to 'none' by default. Only choose 'feedback' when you just delivered a NEW concrete suggestion and the user now needs to try something; never ask for feedback on consecutive assistant turns. "
-            "Choose 'resolution_check' only when the most recent user message or form summary clearly confirms the issue is fixed or worked. Do not repeat it after the user already answered. "
+            "You are STRICTLY limited to dishwasher issues. If the user asks about any non-dishwasher topic, refuse with a helpful reminder that you only support dishwasher troubleshooting. "
+            "If the user asks about any non-dishwasher topic, refuse with a helpful reminder that you only support dishwasher troubleshooting. "
+            "When refusing, set follow_up.type to 'none', leave suggested_actions empty, and provide a short apology plus offer to help with dishwasher topics instead. Do not mention policies or speculate. "
+            "Example refusal JSON: {\"reply\":\"Sorry, I can only help with dishwasher troubleshooting. If you have a dishwasher question, let me know!\",\"suggested_actions\":[],\"confidence\":null,\"follow_up\":{\"type\":\"none\",\"reason\":\"Request outside dishwasher scope\"}}. "
+            "Follow-up guidance: set follow_up.type to 'none' by default."
+            "Always choose 'resolution_check' when the latest user input or quick checkin form summary mentions the issue is fixed, resolved or the suggestions you provided worked or helped the user. "
             "Reserve 'escalation' for cases where you lack further actionable advice or the user explicitly asks for human help. "
             "Your response MUST be raw JSON with these top-level fields: reply (string), suggested_actions (array of strings), confidence (number between 0 and 1 or null), follow_up (object or null). "
-            "The follow_up object MUST contain: action (one of none, feedback, resolution_check, escalation, or custom), reason (short string explaining why), and form (object or null). "
-            "If you pick feedback, resolution_check, or escalation you may leave form null to let the system supply the standard form. "
+            "The follow_up object MUST contain: type (one of none, resolution_check, escalation), reason (short string explaining why)"
             "Never include markdown code fences or additional commentary."
         )
 
@@ -114,25 +117,27 @@ class ResponseGenerationService:
         suggested_actions = self._ensure_list_of_str(action_payload)
 
         follow_up_payload = payload.get("follow_up")
-        follow_up_action = None
+        follow_up_type = None
         follow_up_reason = None
-        follow_up_form_payload = None
 
         if isinstance(follow_up_payload, dict):
-            follow_up_action = str(follow_up_payload.get("action") or "").strip() or None
+            follow_up_type = str(
+                follow_up_payload.get("type")
+                or follow_up_payload.get("action")
+                or ""
+            ).strip() or None
             reason_value = follow_up_payload.get("reason")
-            follow_up_reason = str(reason_value).strip() if isinstance(reason_value, str) and reason_value.strip() else None
-            follow_up_form_payload = follow_up_payload.get("form")
+            follow_up_reason = (
+                str(reason_value).strip() if isinstance(reason_value, str) and reason_value.strip() else None
+            )
         else:
-            legacy_action = payload.get("follow_up_action")
-            if isinstance(legacy_action, str) and legacy_action.strip():
-                follow_up_action = legacy_action.strip()
+            legacy_type = payload.get("follow_up_type") or payload.get("follow_up_action")
+            if isinstance(legacy_type, str) and legacy_type.strip():
+                follow_up_type = legacy_type.strip()
             legacy_reason = payload.get("follow_up_reason")
             if isinstance(legacy_reason, str) and legacy_reason.strip():
                 follow_up_reason = legacy_reason.strip()
-            follow_up_form_payload = payload.get("follow_up_form")
-
-        follow_up_form = self._parse_form(follow_up_form_payload)
+        follow_up_form = None
 
         confidence_value = payload.get("confidence")
         try:
@@ -147,7 +152,7 @@ class ResponseGenerationService:
             k: v
             for k, v in payload.items()
             if k
-            not in {"reply", "suggested_actions", "follow_up", "follow_up_form", "follow_up_action", "follow_up_reason", "confidence"}
+            not in {"reply", "suggested_actions", "follow_up", "follow_up_form", "follow_up_action", "follow_up_type", "follow_up_reason", "confidence"}
         }
 
         return AssistantAnswer(
@@ -156,7 +161,7 @@ class ResponseGenerationService:
             follow_up_form=follow_up_form,
             confidence=confidence,
             metadata=metadata,
-            follow_up_action=follow_up_action,
+            follow_up_type=follow_up_type,
             follow_up_reason=follow_up_reason,
         )
 

@@ -52,7 +52,7 @@ class AssistantAnswer(BaseModel):
     follow_up_form: Optional[GeneratedForm] = None
     confidence: Optional[float] = None
     metadata: Dict[str, Any] = Field(default_factory=dict)
-    follow_up_action: Optional[str] = None
+    follow_up_type: Optional[str] = None
     follow_up_reason: Optional[str] = None
 
 
