@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeftIcon, ChevronRightIcon } from "@heroicons/react/24/outline";
 import clsx from "clsx";
 import type { ConversationSession } from "../../types";
@@ -28,19 +28,80 @@ const STATUS_COLORS: Record<ConversationSession["status"], string> = {
 const ConversationList = ({
   sessions,
   loading = false,
-  pageSizeOptions = [10, 25, 50],
+  pageSizeOptions = [5, 10, 25, 50],
   defaultPageSize = 10,
   onSelectSession,
 }: ConversationListProps) => {
+  const PAGE_SIZE_STORAGE_KEY = "conversation-list-page-size";
+  const CURRENT_PAGE_STORAGE_KEY = "conversation-list-current-page";
+  const initialPageRef = useRef<number | null>(null);
   const normalizedOptions = useMemo(() => {
     const unique = Array.from(new Set([...pageSizeOptions, defaultPageSize])).filter((value) => value > 0);
     return unique.sort((a, b) => a - b);
   }, [pageSizeOptions, defaultPageSize]);
 
-  const [pageSize, setPageSize] = useState(() => normalizedOptions[0] ?? defaultPageSize);
-  const [currentPage, setCurrentPage] = useState(0);
+  const [pageSize, setPageSize] = useState(() => {
+    const fallback = normalizedOptions[0] ?? defaultPageSize;
+    if (typeof window === "undefined") {
+      return fallback;
+    }
+
+    const storedValue = window.localStorage.getItem(PAGE_SIZE_STORAGE_KEY);
+    const parsed = storedValue ? Number.parseInt(storedValue, 10) : NaN;
+    if (!Number.isNaN(parsed) && parsed > 0) {
+      return normalizedOptions.includes(parsed) ? parsed : fallback;
+    }
+
+    return fallback;
+  });
+  const [currentPage, setCurrentPage] = useState(() => {
+    if (typeof window === "undefined") {
+      initialPageRef.current = 0;
+      return 0;
+    }
+
+    const storedValue = window.localStorage.getItem(CURRENT_PAGE_STORAGE_KEY);
+    const parsed = storedValue ? Number.parseInt(storedValue, 10) : NaN;
+    if (!Number.isNaN(parsed) && parsed >= 0) {
+      initialPageRef.current = parsed;
+      return parsed;
+    }
+
+    initialPageRef.current = 0;
+    return 0;
+  });
+
+  useEffect(() => {
+    if (!normalizedOptions.includes(pageSize)) {
+      setPageSize(normalizedOptions[0] ?? defaultPageSize);
+    }
+  }, [normalizedOptions, pageSize, defaultPageSize]);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(PAGE_SIZE_STORAGE_KEY, String(pageSize));
+    }
+  }, [pageSize]);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(CURRENT_PAGE_STORAGE_KEY, String(currentPage));
+    }
+  }, [currentPage]);
 
   const pageCount = Math.max(1, Math.ceil((sessions.length || 1) / pageSize));
+
+  useEffect(() => {
+    setCurrentPage((prev) => {
+      const target = initialPageRef.current ?? prev;
+      const maxIndex = Math.max(0, Math.ceil(Math.max(sessions.length, 1) / pageSize) - 1);
+      const next = Math.min(target, maxIndex);
+      if (sessions.length > 0) {
+        initialPageRef.current = null;
+      }
+      return next;
+    });
+  }, [sessions.length, pageSize]);
 
   const pagedSessions = useMemo(() => {
     const start = currentPage * pageSize;
