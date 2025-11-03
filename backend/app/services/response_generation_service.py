@@ -3,7 +3,8 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from typing import List
+from typing import List, Optional
+from typing import Literal
 
 from openai import OpenAI
 
@@ -15,8 +16,35 @@ from app.data.DTO import (
     GeneratedFormOption,
     ResponseGenerationRequest,
 )
+from pydantic import BaseModel, ConfigDict, Field
 
 logger = logging.getLogger(__name__)
+
+
+class FollowUpPayload(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    type: Literal["none", "resolution_check", "escalation"] = Field(
+        description="Default 'none'. If the user's need seems resolved use 'resolution_check' to check if the problem was fixed completely. 'escalation' only if human help seems necessary."
+    )
+    reason: str = Field(
+        description="One-sentence justification for the chosen type. If type is 'none', explain briefly why no follow-up is needed."
+    )
+
+class AssistantResponsePayload(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    reply: str = Field(description="Final user-facing message. Keep it concise and directly helpful.")
+    suggested_actions: List[str] = Field(
+        default_factory=list,
+        description="Zero or more concrete next steps for the user. Return [] if none."
+    )
+    confidence: Optional[float] = Field(
+        None, ge=0, le=1,
+        description="Model's confidence in the reply."
+    )
+    follow_up: Optional[FollowUpPayload] = Field(
+        None,
+        description="If unsure, set to null. Avoid guessing."
+    )
 
 
 class ResponseGenerationService:
@@ -51,28 +79,19 @@ class ResponseGenerationService:
             "When refusing, set follow_up.type to 'none', leave suggested_actions empty, and provide a short apology plus offer to help with dishwasher topics instead. Do not mention policies or speculate. "
             "Example refusal JSON: {\"reply\":\"Sorry, I can only help with dishwasher troubleshooting. If you have a dishwasher question, let me know!\",\"suggested_actions\":[],\"confidence\":null,\"follow_up\":{\"type\":\"none\",\"reason\":\"Request outside dishwasher scope\"}}. "
             "Follow-up guidance: set follow_up.type to 'none' by default."
-            "Always choose 'resolution_check' when the latest user input or quick checkin form summary mentions the issue is fixed, resolved or the suggestions you provided worked or helped the user. "
+            "Choose 'resolution_check' when the latest user input or quick checkin form summary mentions the issue is fixed, resolved or the user mentions the suggestions you provided worked. This is not for checking if things helped, but if the issue appears resolved. "
             "Reserve 'escalation' for cases where you lack further actionable advice or the user explicitly asks for human help. "
-            "Your response MUST be raw JSON with these top-level fields: reply (string), suggested_actions (array of strings), confidence (number between 0 and 1 or null), follow_up (object or null). "
-            "The follow_up object MUST contain: type (one of none, resolution_check, escalation), reason (short string explaining why)"
             "Never include markdown code fences or additional commentary."
         )
 
-        context_sections = self._build_context_blocks(request)
+        context_sections = self._ensure_content_parts(self._build_context_blocks(request))
 
-        return self._client.responses.create(
+        return self._client.responses.parse(
             model=self._model,
-            input=[
-                {
-                    "role": "system",
-                    "content": [{"type": "input_text", "text": system_prompt}],
-                },
-                {
-                    "role": "user",
-                    "content": context_sections,
-                },
-            ],
-            temperature=0.4,
+            instructions=system_prompt,
+            input=[{"role": "user", "content": context_sections}],
+            temperature=0.2,
+            text_format=AssistantResponsePayload,
         )
 
     def _build_context_blocks(self, request: ResponseGenerationRequest) -> List[dict]:
@@ -108,15 +127,36 @@ class ResponseGenerationService:
 
         return blocks
 
-    def _parse_response(self, response) -> AssistantAnswer:
-        raw_text = self._extract_text(response)
-        payload = self._coerce_json(raw_text)
+    @staticmethod
+    def _ensure_content_parts(value) -> List[dict]:
+        if not isinstance(value, list):
+            return [{"type": "input_text", "text": str(value)}]
 
-        reply = str(payload.get("reply") or raw_text or "I ran into an issue generating a reply.")
-        action_payload = payload.get("suggested_actions")
+        normalized: List[dict] = []
+        for part in value:
+            if isinstance(part, dict) and "type" in part:
+                normalized.append(part)
+            else:
+                normalized.append({"type": "input_text", "text": json.dumps(part) if not isinstance(part, str) else part})
+
+        if not normalized:
+            normalized.append({"type": "input_text", "text": ""})
+
+        return normalized
+
+    def _parse_response(self, response) -> AssistantAnswer:
+        payload = getattr(response, "output_parsed", None)
+        if isinstance(payload, AssistantResponsePayload):
+            return self._from_typed_payload(payload)
+
+        raw_text = self._extract_text(response)
+        legacy_payload = self._coerce_json(raw_text)
+
+        reply = str(legacy_payload.get("reply") or raw_text or "I ran into an issue generating a reply.")
+        action_payload = legacy_payload.get("suggested_actions")
         suggested_actions = self._ensure_list_of_str(action_payload)
 
-        follow_up_payload = payload.get("follow_up")
+        follow_up_payload = legacy_payload.get("follow_up")
         follow_up_type = None
         follow_up_reason = None
 
@@ -131,15 +171,16 @@ class ResponseGenerationService:
                 str(reason_value).strip() if isinstance(reason_value, str) and reason_value.strip() else None
             )
         else:
-            legacy_type = payload.get("follow_up_type") or payload.get("follow_up_action")
+            legacy_type = legacy_payload.get("follow_up_type") or legacy_payload.get("follow_up_action")
             if isinstance(legacy_type, str) and legacy_type.strip():
                 follow_up_type = legacy_type.strip()
-            legacy_reason = payload.get("follow_up_reason")
+            legacy_reason = legacy_payload.get("follow_up_reason")
             if isinstance(legacy_reason, str) and legacy_reason.strip():
                 follow_up_reason = legacy_reason.strip()
+
         follow_up_form = None
 
-        confidence_value = payload.get("confidence")
+        confidence_value = legacy_payload.get("confidence")
         try:
             confidence = float(confidence_value)
         except (TypeError, ValueError):
@@ -150,7 +191,7 @@ class ResponseGenerationService:
 
         metadata = {
             k: v
-            for k, v in payload.items()
+            for k, v in legacy_payload.items()
             if k
             not in {"reply", "suggested_actions", "follow_up", "follow_up_form", "follow_up_action", "follow_up_type", "follow_up_reason", "confidence"}
         }
@@ -257,3 +298,37 @@ class ResponseGenerationService:
         if value:
             return [str(value).strip()]
         return []
+
+    def _from_typed_payload(self, payload: AssistantResponsePayload) -> AssistantAnswer:
+        reply = payload.reply.strip() if payload.reply else ""
+        actions = [action.strip() for action in payload.suggested_actions if action and action.strip()]
+
+        follow_up_type = None
+        follow_up_reason = None
+        if payload.follow_up:
+            follow_up_type = payload.follow_up.type.strip()
+            follow_up_reason = payload.follow_up.reason.strip() or None
+            if not follow_up_type:
+                follow_up_type = None
+
+        confidence = payload.confidence
+        if confidence is not None:
+            try:
+                confidence = max(0.0, min(float(confidence), 1.0))
+            except (TypeError, ValueError):
+                confidence = None
+
+        metadata = {}
+        extra = getattr(payload, "model_extra", None)
+        if isinstance(extra, dict):
+            metadata = {k: v for k, v in extra.items() if k not in {"reply", "suggested_actions", "confidence", "follow_up"}}
+
+        return AssistantAnswer(
+            reply=reply or "",
+            suggested_actions=actions,
+            follow_up_form=None,
+            confidence=confidence,
+            metadata=metadata,
+            follow_up_type=follow_up_type,
+            follow_up_reason=follow_up_reason,
+        )

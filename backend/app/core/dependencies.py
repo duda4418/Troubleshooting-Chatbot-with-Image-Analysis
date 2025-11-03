@@ -6,7 +6,6 @@ from app.data.repositories import (
     ConversationMessageRepository,
     ConversationSessionRepository,
     ConversationImageRepository,
-    ConversationFormRepository,
 )
 from app.services import (
     AssistantService,
@@ -39,13 +38,6 @@ def get_conversation_message_repository() -> ConversationMessageRepository:
 @lru_cache()
 def get_conversation_image_repository() -> ConversationImageRepository:
     return ConversationImageRepository(get_database_provider())
-
-
-@lru_cache()
-def get_conversation_form_repository() -> ConversationFormRepository:
-    return ConversationFormRepository(get_database_provider())
-
-
 
 @lru_cache()
 def get_chroma_service() -> ChromaService:

@@ -18,9 +18,9 @@ class ConversationContextService:
     async def get_ai_context(self, session_id: UUID) -> ConversationAIContext:
         """Return sanitized conversation details for the given session.
 
-        The response captures only the information the OpenAI Responses API needs:
-        user-authored messages, image analysis notes, assistant replies with
-        metadata, and answered form prompts rendered as succinct events.
+    The response captures only the information the OpenAI Responses API needs:
+    user-authored messages, image analysis notes, and assistant replies with
+    relevant metadata rendered as succinct events.
         """
 
         aggregate = await self._session_repository.get_context(session_id)
@@ -41,8 +41,6 @@ class ConversationContextService:
                     events.append(assistant_entry)
 
         events.extend(self._build_image_events(aggregate.get("image_descriptions")))
-        events.extend(self._build_form_events(aggregate.get("forms")))
-
         return ConversationAIContext(
             session_id=session_id,
             events=self._trim_events(events),
@@ -97,25 +95,6 @@ class ConversationContextService:
             if not cleaned:
                 continue
             events.append(f"Image analysis {index}: {cleaned}")
-        return events
-
-    def _build_form_events(self, forms) -> List[str]:
-        events: List[str] = []
-        if not isinstance(forms, list):
-            return events
-
-        for form in forms:
-            if not isinstance(form, dict):
-                continue
-            title = (form.get("title") or "Follow-up form").strip() or "Follow-up form"
-            status = form.get("status") or "in_progress"
-            prefix = f"Form '{title}' [{status}]"
-            for item in form.get("inputs", []) or []:
-                question = self._normalize_text(item.get("question")) or "Prompt"
-                answer = self._normalize_text(item.get("answer"))
-                if not answer:
-                    continue
-                events.append(f"{prefix} prompt '{question}': {answer}")
         return events
 
     @staticmethod
