@@ -44,10 +44,15 @@ class ResponseGenerationService:
         system_prompt = (
             "You are a friendly troubleshooting assistant. Stay practical, concise, and informal without repeating yourself. "
             "Use the supplied history of attempted suggested actions to avoid repeating them. "
-            "If you genuinely have no fresh ideas, acknowledge it and ask the user—via a yes/no escalation form—whether they want to hand off to a human specialist. "
-            "When you are unsure, request clarifying details before guessing. Only include a follow_up_form when you truly need that confirmation or consent. "
-            "Respond ONLY with raw JSON (no code fences) containing: reply (string), suggested_actions (array of strings), "
-            "follow_up_form (object or null), confidence (float between 0 and 1)."
+            "If you genuinely have no fresh ideas, acknowledge it and propose escalating to a human specialist. "
+            "When you are unsure, request clarifying details before guessing. "
+            "Follow-up guidance: set follow_up.action to 'none' by default. Only choose 'feedback' when you just delivered a NEW concrete suggestion and the user now needs to try something; never ask for feedback on consecutive assistant turns. "
+            "Choose 'resolution_check' only when the most recent user message or form summary clearly confirms the issue is fixed or worked. Do not repeat it after the user already answered. "
+            "Reserve 'escalation' for cases where you lack further actionable advice or the user explicitly asks for human help. "
+            "Your response MUST be raw JSON with these top-level fields: reply (string), suggested_actions (array of strings), confidence (number between 0 and 1 or null), follow_up (object or null). "
+            "The follow_up object MUST contain: action (one of none, feedback, resolution_check, escalation, or custom), reason (short string explaining why), and form (object or null). "
+            "If you pick feedback, resolution_check, or escalation you may leave form null to let the system supply the standard form. "
+            "Never include markdown code fences or additional commentary."
         )
 
         context_sections = self._build_context_blocks(request)
@@ -107,7 +112,27 @@ class ResponseGenerationService:
         reply = str(payload.get("reply") or raw_text or "I ran into an issue generating a reply.")
         action_payload = payload.get("suggested_actions")
         suggested_actions = self._ensure_list_of_str(action_payload)
-        follow_up_form = self._parse_form(payload.get("follow_up_form"))
+
+        follow_up_payload = payload.get("follow_up")
+        follow_up_action = None
+        follow_up_reason = None
+        follow_up_form_payload = None
+
+        if isinstance(follow_up_payload, dict):
+            follow_up_action = str(follow_up_payload.get("action") or "").strip() or None
+            reason_value = follow_up_payload.get("reason")
+            follow_up_reason = str(reason_value).strip() if isinstance(reason_value, str) and reason_value.strip() else None
+            follow_up_form_payload = follow_up_payload.get("form")
+        else:
+            legacy_action = payload.get("follow_up_action")
+            if isinstance(legacy_action, str) and legacy_action.strip():
+                follow_up_action = legacy_action.strip()
+            legacy_reason = payload.get("follow_up_reason")
+            if isinstance(legacy_reason, str) and legacy_reason.strip():
+                follow_up_reason = legacy_reason.strip()
+            follow_up_form_payload = payload.get("follow_up_form")
+
+        follow_up_form = self._parse_form(follow_up_form_payload)
 
         confidence_value = payload.get("confidence")
         try:
@@ -122,7 +147,7 @@ class ResponseGenerationService:
             k: v
             for k, v in payload.items()
             if k
-            not in {"reply", "suggested_actions", "follow_up_form", "confidence"}
+            not in {"reply", "suggested_actions", "follow_up", "follow_up_form", "follow_up_action", "follow_up_reason", "confidence"}
         }
 
         return AssistantAnswer(
@@ -131,6 +156,8 @@ class ResponseGenerationService:
             follow_up_form=follow_up_form,
             confidence=confidence,
             metadata=metadata,
+            follow_up_action=follow_up_action,
+            follow_up_reason=follow_up_reason,
         )
 
     @staticmethod

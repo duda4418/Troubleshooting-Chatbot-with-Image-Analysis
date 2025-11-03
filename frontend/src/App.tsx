@@ -716,14 +716,9 @@ function ChatLayout() {
       const typedMetadata = rawMetadata ? mapMetadata(rawMetadata) : ({} as MessageMetadata);
       hideMessage = typedMetadata.client_hidden === true;
 
-      const now = new Date().toISOString();
-      const placeholderContent =
-        trimmedMessage ||
-        (attachments.length
-          ? attachments.length === 1
-            ? "[image uploaded]"
-            : `[${attachments.length} images uploaded]`
-          : "");
+  const nowIso = new Date().toISOString();
+  const serverStyleTimestamp = nowIso.endsWith("Z") ? nowIso.slice(0, -1) : nowIso;
+      const placeholderContent = trimmedMessage || "";
       tempUserId = `pending-${createTempId()}`;
       tempAssistantId = `${tempUserId}-assistant`;
       optimisticMetadata = typedMetadata;
@@ -736,7 +731,7 @@ function ChatLayout() {
             sessionId: activeSessionId ?? (tempUserId as string),
             role: "user",
             content: placeholderContent,
-            timestamp: now,
+            timestamp: serverStyleTimestamp,
             metadata: optimisticMetadata,
             status: "pending",
           });
@@ -746,7 +741,7 @@ function ChatLayout() {
           sessionId: activeSessionId ?? (tempUserId as string),
           role: "assistant",
           content: "",
-          timestamp: now,
+          timestamp: serverStyleTimestamp,
           metadata: {} as MessageMetadata,
           status: "pending",
         });

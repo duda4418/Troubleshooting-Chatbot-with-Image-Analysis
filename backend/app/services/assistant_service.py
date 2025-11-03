@@ -26,7 +26,7 @@ from app.services.conversation_context_service import ConversationContextService
 from app.services.image_analysis_service import ImageAnalysisService
 from app.services.form_submission_service import FormSubmissionService
 from app.services.feedback_flow_service import FeedbackFlowService
-from app.services.recommendation_tracker import RecommendationTracker, RecommendationHistory
+from app.services.recommendation_tracker import RecommendationTracker
 from app.services.response_generation_service import ResponseGenerationService
 from app.tools.knowledge_tool import KnowledgeSearchTool
 from app.tools.ticket_tool import TicketTool
@@ -153,21 +153,18 @@ class AssistantService:
             )
             answer = await self._response_service.generate(response_request)
 
-            escalated = await self._maybe_escalate(
-                session_id=session_id,
-                answer=answer,
-                history=history,
+            self._apply_follow_up_directive(
+                answer,
+                prior_messages=recent_assistant_messages,
+            )
+
+            self._maybe_offer_quick_check(
+                answer,
                 prior_messages=recent_assistant_messages,
             )
 
             if ticket_details:
                 self._attach_ticket_metadata(answer, ticket_details)
-
-            if not escalated:
-                self._feedback_flow.maybe_attach_feedback_form(
-                    answer,
-                    prior_messages=recent_assistant_messages,
-                )
 
         assistant_message = await self._persist_assistant_message(
             session_id=session_id,
@@ -262,6 +259,14 @@ class AssistantService:
         if isinstance(client_hidden, bool):
             metadata["client_hidden"] = client_hidden
 
+        follow_up_action = extra_metadata.pop("follow_up_action", None)
+        if isinstance(follow_up_action, str) and follow_up_action.strip():
+            metadata["follow_up_action"] = follow_up_action.strip()
+
+        follow_up_reason = extra_metadata.pop("follow_up_reason", None)
+        if isinstance(follow_up_reason, str) and follow_up_reason.strip():
+            metadata["follow_up_reason"] = follow_up_reason.strip()
+
         form_kind_extra = extra_metadata.get("form_kind")
         if isinstance(form_kind_extra, str):
             metadata["form_kind"] = form_kind_extra
@@ -321,76 +326,86 @@ class AssistantService:
                 logger.debug("Skipping malformed knowledge hit: %s", item)
         return hits
 
-    async def _maybe_escalate(
+    def _apply_follow_up_directive(
         self,
-        *,
-        session_id: UUID,
         answer: AssistantAnswer,
-        history: RecommendationHistory,
+        *,
         prior_messages: List[ConversationMessage],
-    ) -> bool:
-        if history.is_empty():
-            return False
-
-        if self._already_escalated(prior_messages):
-            return False
-
-        current_actions = {
-            item.strip().lower()
-            for item in answer.suggested_actions
-            if isinstance(item, str) and item.strip()
-        }
-
-        repeated = False
-        if current_actions and current_actions.issubset(history.normalized_actions()):
-            repeated = True
-
-        if not current_actions and history.total_recommendations() >= 1:
-            repeated = True
-
-        if not repeated:
-            return False
-
-        if self._recent_form_kind(prior_messages, "escalation", limit=2):
-            return False
-
-        answer.suggested_actions = []
-        if answer.follow_up_form is None:
-            answer.follow_up_form = self._build_escalation_form()
+    ) -> None:
+        action = (answer.follow_up_action or "").strip().lower()
+        if not action or action == "none":
+            answer.follow_up_action = None
+            return
 
         metadata = dict(answer.metadata or {})
-        metadata["escalation"] = {"status": "recommended"}
-        metadata["form_kind"] = "escalation"
+        metadata["follow_up_action"] = action
+        if answer.follow_up_reason:
+            metadata["follow_up_reason"] = answer.follow_up_reason
+
+        if action == "escalation":
+            if self._recent_form_kind(prior_messages, "escalation", limit=1):
+                # Avoid spamming escalation prompts
+                metadata.pop("follow_up_action", None)
+                metadata.pop("follow_up_reason", None)
+                answer.follow_up_action = None
+                answer.follow_up_form = None
+            else:
+                metadata.setdefault("escalation", {"status": "recommended"})
+                metadata["form_kind"] = "escalation"
+                if answer.follow_up_form is None:
+                    answer.follow_up_form = self._build_escalation_form()
+        elif action == "resolution_check":
+            if self._recent_form_kind(prior_messages, "resolution_check", limit=1):
+                metadata.pop("follow_up_action", None)
+                metadata.pop("follow_up_reason", None)
+                answer.follow_up_action = None
+                answer.follow_up_form = None
+            else:
+                metadata["form_kind"] = "resolution_check"
+                if answer.follow_up_form is None:
+                    answer.follow_up_form = FeedbackFlowService.build_resolution_form()
+        elif action == "feedback":
+            if self._recent_form_kind(prior_messages, "feedback", limit=1):
+                metadata.pop("follow_up_action", None)
+                metadata.pop("follow_up_reason", None)
+                answer.follow_up_action = None
+                answer.follow_up_form = None
+            else:
+                metadata["form_kind"] = "feedback"
+                if answer.follow_up_form is None:
+                    answer.follow_up_form = FeedbackFlowService.build_feedback_form()
+        else:
+            metadata.setdefault("form_kind", action)
+
         answer.metadata = metadata
-        return True
 
-    @staticmethod
-    def _already_escalated(messages: List[ConversationMessage]) -> bool:
-        observed_statuses = {"recommended", "awaiting_confirmation", "ticket_opened", "user_confirmed"}
+    def _maybe_offer_quick_check(
+        self,
+        answer: AssistantAnswer,
+        *,
+        prior_messages: List[ConversationMessage],
+    ) -> None:
+        if answer.follow_up_form is not None:
+            return
+        if (answer.follow_up_action or "").strip():
+            return
+        if not answer.suggested_actions:
+            return
+        if self._recent_form_kind(prior_messages, "feedback", limit=3):
+            return
 
-        for message in messages:
-            metadata = message.message_metadata or {}
-            if not isinstance(metadata, dict):
-                continue
+        metadata = dict(answer.metadata or {})
+        metadata["form_kind"] = "feedback"
+        metadata["follow_up_action"] = "feedback"
+        metadata.setdefault(
+            "follow_up_reason",
+            "Quick check after new troubleshooting steps",
+        )
 
-            if AssistantService._contains_escalation_flag(metadata, observed_statuses):
-                return True
-            extra = metadata.get("extra")
-            if isinstance(extra, dict) and AssistantService._contains_escalation_flag(extra, observed_statuses):
-                return True
-        return False
-
-    @staticmethod
-    def _contains_escalation_flag(container: Dict[str, Any], statuses: set[str]) -> bool:
-        escalation = container.get("escalation")
-        if isinstance(escalation, dict):
-            status = str(escalation.get("status", "")).lower()
-            if status in statuses:
-                return True
-        form_kind = container.get("form_kind")
-        if isinstance(form_kind, str) and form_kind.strip().lower() == "escalation":
-            return True
-        return False
+        answer.follow_up_form = FeedbackFlowService.build_feedback_form()
+        answer.follow_up_action = "feedback"
+        answer.follow_up_reason = metadata["follow_up_reason"]
+        answer.metadata = metadata
 
     @staticmethod
     def _recent_form_kind(
