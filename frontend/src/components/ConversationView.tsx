@@ -37,7 +37,13 @@ const ConversationView = ({
   const lastSessionIdRef = useRef<string | null>(null);
   const initialScrollRef = useRef(true);
   const autoScrollRef = useRef(true);
+  const lastSessionForMessagesRef = useRef<string | null>(activeSessionId ?? null);
   const [composerHeight, setComposerHeight] = useState(0);
+  const [renderedMessages, setRenderedMessages] = useState<ChatMessage[]>(messages);
+  const prevMessageCountRef = useRef(renderedMessages.length);
+  const prevLastMessageRef = useRef<ChatMessage | undefined>(
+    renderedMessages.length ? renderedMessages[renderedMessages.length - 1] : undefined
+  );
 
   useEffect(() => {
     const marker = bottomMarkerRef.current;
@@ -55,8 +61,31 @@ const ConversationView = ({
       lastSessionIdRef.current = currentSession;
       initialScrollRef.current = true;
       autoScrollRef.current = true;
+      lastSessionForMessagesRef.current = currentSession;
+      setRenderedMessages([]);
+      prevMessageCountRef.current = 0;
+      prevLastMessageRef.current = undefined;
+      return;
     }
-  }, [activeSessionId]);
+    lastSessionForMessagesRef.current = currentSession;
+  }, [activeSessionId, messages]);
+
+  useEffect(() => {
+    const targetSession = activeSessionId ?? null;
+    const matchesCurrentSession =
+      targetSession === null || messages.every((message) => message.sessionId === targetSession);
+
+    if (!matchesCurrentSession) {
+      return;
+    }
+
+    setRenderedMessages((prev) => {
+      if (lastSessionForMessagesRef.current !== targetSession) {
+        return messages;
+      }
+      return mergeMessageLists(prev, messages);
+    });
+  }, [messages, activeSessionId]);
 
   const scrollToBottom = useCallback((behavior: ScrollBehavior = "auto") => {
     const container = scrollContainerRef.current;
@@ -108,20 +137,35 @@ const ConversationView = ({
       return;
     }
 
+    const prevCount = prevMessageCountRef.current;
+    const nextCount = renderedMessages.length;
+    const previousLast = prevLastMessageRef.current;
+    const nextLast = nextCount ? renderedMessages[nextCount - 1] : undefined;
+
+    const appended = nextCount > prevCount;
+    const lastChanged =
+      nextLast && previousLast
+        ? !areMessagesEqual(nextLast, previousLast)
+        : nextLast !== previousLast;
+
+    prevMessageCountRef.current = nextCount;
+    prevLastMessageRef.current = nextLast;
+
     if (initialScrollRef.current) {
       initialScrollRef.current = false;
       scrollToBottom("auto");
       return;
     }
 
-    if (autoScrollRef.current) {
-      scrollToBottom(messages.length > 1 ? "smooth" : "auto");
+    if ((appended || lastChanged) && autoScrollRef.current) {
+      const behavior = appended && nextCount - prevCount > 1 ? "auto" : "smooth";
+      scrollToBottom(behavior);
     }
-  }, [messages, scrollToBottom]);
+  }, [renderedMessages, scrollToBottom]);
 
   useEffect(() => {
     handleScroll();
-  }, [handleScroll, messages.length]);
+  }, [handleScroll, renderedMessages.length]);
 
   const wasLoadingRef = useRef(loading);
 
@@ -242,8 +286,8 @@ const ConversationView = ({
           data-testid="conversation-scroll-area"
         >
           <ConversationTimeline
-            messages={messages}
-            loading={loading}
+            messages={renderedMessages}
+            loading={loading && renderedMessages.length === 0}
             isBusy={isSending}
             onSubmitForm={handleFormSubmit}
             onDismissForm={handleFormDismiss}
@@ -278,6 +322,65 @@ const ConversationView = ({
 };
 
 export default memo(ConversationView);
+
+const mergeMessageLists = (current: ChatMessage[], incoming: ChatMessage[]): ChatMessage[] => {
+  if (current === incoming) {
+    return current;
+  }
+
+  if (!current.length) {
+    return incoming;
+  }
+
+  const currentById = new Map(current.map((message) => [message.id, message]));
+  let didChange = current.length !== incoming.length;
+
+  const merged = incoming.map((message) => {
+    const existing = currentById.get(message.id);
+    if (existing && areMessagesEqual(existing, message)) {
+      return existing;
+    }
+    didChange = true;
+    return message;
+  });
+
+  if (!didChange) {
+    return current;
+  }
+
+  return merged;
+};
+
+const areMessagesEqual = (a: ChatMessage, b: ChatMessage): boolean => {
+  if (a === b) {
+    return true;
+  }
+
+  return (
+    a.id === b.id &&
+    a.role === b.role &&
+    a.content === b.content &&
+    a.status === b.status &&
+    a.timestamp === b.timestamp &&
+    areMetadataEqual(a.metadata, b.metadata)
+  );
+};
+
+const areMetadataEqual = (a: ChatMessage["metadata"], b: ChatMessage["metadata"]): boolean => {
+  if (a === b) {
+    return true;
+  }
+
+  if (!a || !b) {
+    return !a && !b;
+  }
+
+  try {
+    return JSON.stringify(a) === JSON.stringify(b);
+  } catch {
+    return false;
+  }
+};
 
 const buildFieldResponses = (
   submission: FollowUpFormSubmission,
