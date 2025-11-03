@@ -163,7 +163,9 @@ const ConversationList = ({
         <td className={clsx("px-4 py-3 text-sm", STATUS_COLORS[session.status])}>{STATUS_LABELS[session.status]}</td>
         <td className="px-4 py-3 text-sm text-white/70">{session.createdAt ? new Date(session.createdAt).toLocaleString() : "–"}</td>
         <td className="px-4 py-3 text-sm text-white/70">{session.lastUpdatedLabel}</td>
-        <td className="px-4 py-3 text-sm text-white/90 text-right">{session.feedbackRating ? `${session.feedbackRating.toFixed(1)}/5` : "–"}</td>
+        <td className="px-4 py-3 text-sm text-white/90 text-right">
+          {session.feedbackRating ? `${Math.round(session.feedbackRating)}/5` : "–"}
+        </td>
       </tr>
     ));
   };
