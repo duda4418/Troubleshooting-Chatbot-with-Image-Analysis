@@ -30,6 +30,10 @@ from .image_analysis_dto import (
     ImageAnalysisSummary,
     ImageObservationSummary,
 )
+from .form_submission_dto import (
+    FormSubmissionField,
+    FormSubmissionPayload,
+)
 from .knowledge_dto import (
     AssistantToolResult,
     KnowledgeHit,
@@ -56,6 +60,8 @@ __all__ = [
     "ImageAnalysisResponse",
     "ImageAnalysisSummary",
     "ImageObservationSummary",
+    "FormSubmissionField",
+    "FormSubmissionPayload",
     "AssistantToolResult",
     "KnowledgeHit",
     "AssistantAnswer",

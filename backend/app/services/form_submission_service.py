@@ -5,6 +5,9 @@ import logging
 from typing import Any, Dict, Optional
 from uuid import UUID
 
+from pydantic import ValidationError
+
+from app.data.DTO import FormSubmissionPayload
 from app.data.repositories import ConversationMessageRepository
 
 logger = logging.getLogger(__name__)
@@ -41,8 +44,8 @@ class FormSubmissionService:
             )
 
         form_kind = await self._resolve_form_kind(session_id, metadata, submission)
-        status = self._normalize_text(submission.get("status"))
-        choice = self._first_form_choice(submission)
+        status = submission.normalized_status()
+        choice = submission.first_choice()
 
         yes_values = {"yes", "y", "true"}
         no_values = {"no", "n", "false"}
@@ -233,13 +236,17 @@ class FormSubmissionService:
         self,
         session_id: UUID,
         metadata: Dict[str, Any],
-        submission: Dict[str, Any],
+        submission: FormSubmissionPayload,
     ) -> Optional[str]:
         inline_kind = self._extract_form_kind(metadata)
         if inline_kind:
             return inline_kind
 
-        replied_to = submission.get("replied_to")
+        submission_kind = self._extract_form_kind(submission.raw_payload)
+        if submission_kind:
+            return submission_kind
+
+        replied_to = submission.replied_to
         message_id = self._try_parse_uuid(replied_to)
         if not message_id:
             return None
@@ -256,49 +263,17 @@ class FormSubmissionService:
         return self._extract_form_kind(origin_metadata)
 
     @staticmethod
-    def _extract_form_submission(metadata: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    def _extract_form_submission(metadata: Dict[str, Any]) -> Optional[FormSubmissionPayload]:
         for key in ("follow_up_form_response", "follow_up_form_submission"):
             value = metadata.get(key)
             if isinstance(value, dict):
-                return value
-        return None
-
-    @staticmethod
-    def _first_form_choice(form_submission: Dict[str, Any]) -> Optional[str]:
-        fields = form_submission.get("fields")
-        if isinstance(fields, list):
-            for entry in fields:
-                if not isinstance(entry, dict):
+                try:
+                    submission = FormSubmissionPayload.model_validate(value)
+                except ValidationError:
+                    logger.warning("Failed to parse form submission payload for key %s", key)
                     continue
-                if "value" in entry:
-                    normalized = FormSubmissionService._normalize_value(entry["value"])
-                    if normalized:
-                        return normalized
-        value = form_submission.get("value")
-        return FormSubmissionService._normalize_value(value)
-
-    @staticmethod
-    def _normalize_value(value: Any) -> Optional[str]:
-        if value is None:
-            return None
-        if isinstance(value, list):
-            if not value:
-                return None
-            value = value[0]
-        if isinstance(value, (int, float)):
-            text = str(value).strip()
-            return text.lower() if text else None
-        if isinstance(value, str):
-            text = value.strip()
-            return text.lower() if text else None
+                return submission.with_raw_payload(value)
         return None
-
-    @staticmethod
-    def _normalize_text(value: Any) -> Optional[str]:
-        if not isinstance(value, str):
-            return None
-        text = value.strip().lower()
-        return text or None
 
     @staticmethod
     def _extract_form_kind(metadata: Any) -> Optional[str]:
