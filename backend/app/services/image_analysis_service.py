@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 from typing import List
 
@@ -12,12 +11,31 @@ from app.data.DTO.image_analysis_dto import (
     ImageAnalysisRequest,
     ImageAnalysisResponse,
     ImageAnalysisSummary,
+    ImageObservationSummary,
 )
+from pydantic import BaseModel, ConfigDict, Field
+
 from app.data.repositories.conversation_image_repository import ConversationImageRepository
 from app.data.schemas.models import ConversationImage
 from app.services.utils.image_payload import resolve_image_mime, to_data_url
 
 logger = logging.getLogger(__name__)
+
+
+class ImageObservationPayload(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    description: str = Field(description="Short clause describing what is visible in the image")
+    confidence: float = Field(ge=0, le=1, description="Confidence score between 0 and 1")
+    label: str | None = Field(default=None, description="Concise subject name if available")
+    details: List[str] = Field(default_factory=list, description="List of factual visual observations")
+
+
+class ImageBatchPayload(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    images: List[ImageObservationPayload] = Field(
+        description="One entry per provided image, in the same order",
+        min_length=1,
+    )
 
 
 class ImageAnalysisService:
@@ -74,17 +92,8 @@ class ImageAnalysisService:
         return self._parse_summary(response)
 
     def _invoke_openai(self, request: ImageAnalysisRequest):
-        instructions = (
-            "You describe appliance-related photos in neutral, observational language. "
-            "Return JSON with keys description (short clause of what is visible), confidence (0-1 float), "
-            "label (concise subject name), and details (array of brief factual observations about the visuals). "
-            "Do not provide troubleshooting advice, next steps, or instructions."
-        )
-
         user_prompt = request.user_prompt or "Summarize what you see and highlight anything unusual."
-        content = [
-            {"type": "input_text", "text": instructions},
-        ]
+        content: List[dict] = []
 
         for idx, image_b64 in enumerate(request.images_b64):
             hint = None
@@ -95,20 +104,31 @@ class ImageAnalysisService:
             content.append({"type": "input_image", "image_url": data_url})
 
         locale_line = f"Locale: {request.locale}." if request.locale else ""
+        image_count = len(request.images_b64)
         content.append(
             {
                 "type": "input_text",
                 "text": (
                     f"{locale_line}\n"
-                    "Respond with valid JSON only. Keep the description factual and concise. "
+                    f"You received {image_count} image(s). Respond with valid JSON only. Provide exactly {image_count} entries in the 'images' array, one per image in the same order. "
+                    "Each description must remain specific to its image. Provide a 'label' for each entry summarizing key issues or conditions using short keywords (e.g., 'dirty dishes', 'cloudy glass'). "
                     "Details must be direct visual observations, not recommendations.\n"
                     f"User note: {user_prompt}"
                 ).strip(),
             }
         )
 
-        return self._client.responses.create(
+        instructions = (
+            "You describe appliance-related photos in neutral, observational language. "
+            "Return JSON with an 'images' array containing one entry for each input image in the same order. "
+            "Each entry must include description, confidence, label, and details (list of factual observations). "
+            "Labels must be concise issue keywords or conditions (e.g., 'rust spots', 'clean dishes', 'cloudy glass') and must never be empty. "
+            "Do not combine observations across images. Do not provide troubleshooting advice, next steps, or instructions."
+        )
+
+        return self._client.responses.parse(
             model=self._vision_model,
+            instructions=instructions,
             input=[
                 {
                     "role": "user",
@@ -116,90 +136,83 @@ class ImageAnalysisService:
                 }
             ],
             temperature=0.2,
+            text_format=ImageBatchPayload,
         )
 
     def _parse_summary(self, response) -> ImageAnalysisSummary:
-        text = self._extract_text(response)
-        payload = self._coerce_json(text)
+        payload = getattr(response, "output_parsed", None)
+        if not isinstance(payload, ImageBatchPayload):
+            message = "OpenAI response did not include the expected image batch payload"
+            logger.error(message)
+            raise RuntimeError(message)
 
-        description = str(payload.get("description") or text or "").strip()
-        try:
-            confidence = float(payload.get("confidence", 0.0))
-        except (TypeError, ValueError):
-            confidence = 0.0
-        label_value = payload.get("label")
-        label = str(label_value) if label_value not in (None, "") else None
-        details_value = payload.get("details") or []
-        if isinstance(details_value, list):
-            details = [str(item) for item in details_value]
-        else:
-            details = [str(details_value)] if details_value else []
+        observations: List[ImageObservationSummary] = []
+        for item in payload.images:
+            description = item.description.strip()
+            label = item.label.strip() if item.label and item.label.strip() else ""
+            details = [detail.strip() for detail in item.details if detail and detail.strip()]
+            observations.append(
+                ImageObservationSummary(
+                    description=description,
+                    confidence=self._coerce_confidence(item.confidence),
+                    label=self._derive_label(description, details, label),
+                    details=details,
+                )
+            )
 
-        return ImageAnalysisSummary(
-            description=description or "",
-            confidence=max(0.0, min(confidence, 1.0)),
-            label=label,
-            details=details,
-        )
+        return ImageAnalysisSummary(images=observations)
 
     async def _update_images_with_summary(
         self,
         images: List[ConversationImage],
         summary: ImageAnalysisSummary,
     ) -> None:
-        for image in images:
-            image.analysis_text = summary.description
+        summaries = summary.images
+        for index, image in enumerate(images):
+            observation = summaries[index] if index < len(summaries) else None
+            if observation:
+                image.analysis_text = observation.description
+                metadata_details = observation.details
+                metadata_label = observation.label
+                metadata_confidence = observation.confidence
+            else:
+                image.analysis_text = ""
+                metadata_details = []
+                metadata_label = "unavailable"
+                metadata_confidence = 0.0
+
             image.analysis_metadata = {
-                "confidence": summary.confidence,
-                "label": summary.label,
-                "details": summary.details,
+                "confidence": metadata_confidence,
+                "label": metadata_label,
+                "details": metadata_details,
+                "image_index": index,
                 "source": image.analysis_metadata.get("source"),
             }
             await self._image_repository.update(image)
 
     @staticmethod
-    def _extract_text(response) -> str:
-        chunks: List[str] = []
-        for item in getattr(response, "output", []) or []:
-            if getattr(item, "type", None) == "output_text":
-                chunks.append(getattr(item, "text", ""))
-        if not chunks and hasattr(response, "output_text"):
-            chunks.append(getattr(response, "output_text", ""))
-        return "".join(chunks).strip()
+    def _coerce_confidence(value: float) -> float:
+        return max(0.0, min(float(value), 1.0))
 
     @staticmethod
-    def _coerce_json(text: str) -> dict:
-        if not text:
-            return {}
-        snippet = ImageAnalysisService._strip_code_fence(text)
-        try:
-            return json.loads(snippet)
-        except json.JSONDecodeError:
-            extracted = ImageAnalysisService._extract_json_block(snippet)
-            if extracted:
-                try:
-                    return json.loads(extracted)
-                except json.JSONDecodeError:
-                    return {}
-            return {}
+    def _derive_label(description: str, details: List[str], raw_label: str) -> str:
+        if raw_label:
+            return raw_label
 
-    @staticmethod
-    def _strip_code_fence(text: str) -> str:
-        cleaned = text.strip()
-        if not cleaned.startswith("```"):
-            return cleaned
+        keywords = ["dirty", "filthy", "greasy", "cloudy", "foggy", "streak", "residue", "rust", "scale", "crack", "broken", "leak", "overflow", "clean", "empty", "full", "soap", "detergent", "foam", "water"]
+        text = " ".join([description, *details]).lower()
+        matched = []
+        for word in keywords:
+            if word in text:
+                matched.append(word)
+        if matched:
+            unique = []
+            for word in matched:
+                if word not in unique:
+                    unique.append(word)
+            return ", ".join(unique)
 
-        lines = cleaned.splitlines()
-        if lines and lines[0].startswith("```"):
-            lines = lines[1:]
-        if lines and lines[-1].strip().startswith("```"):
-            lines = lines[:-1]
-        return "\n".join(lines).strip()
-
-    @staticmethod
-    def _extract_json_block(text: str) -> str | None:
-        start = text.find("{")
-        end = text.rfind("}")
-        if start == -1 or end == -1 or end <= start:
-            return None
-        return text[start : end + 1]
+        fallback = description.split(".")[0].strip()
+        if fallback:
+            return fallback[:80]
+        return "general observation"

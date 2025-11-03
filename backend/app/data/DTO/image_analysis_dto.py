@@ -15,11 +15,15 @@ class ImageAnalysisRequest(BaseModel):
     user_prompt: Optional[str] = None
 
 
-class ImageAnalysisSummary(BaseModel):
+class ImageObservationSummary(BaseModel):
     description: str
     confidence: float
-    label: Optional[str] = None
+    label: str
     details: List[str] = Field(default_factory=list)
+
+
+class ImageAnalysisSummary(BaseModel):
+    images: List[ImageObservationSummary] = Field(default_factory=list)
 
 
 class ImageAnalysisResponse(BaseModel):

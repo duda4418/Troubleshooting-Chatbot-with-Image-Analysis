@@ -28,6 +28,7 @@ from .image_analysis_dto import (
     ImageAnalysisRequest,
     ImageAnalysisResponse,
     ImageAnalysisSummary,
+    ImageObservationSummary,
 )
 from .knowledge_dto import (
     AssistantToolResult,
@@ -54,6 +55,7 @@ __all__ = [
     "ImageAnalysisRequest",
     "ImageAnalysisResponse",
     "ImageAnalysisSummary",
+    "ImageObservationSummary",
     "AssistantToolResult",
     "KnowledgeHit",
     "AssistantAnswer",
