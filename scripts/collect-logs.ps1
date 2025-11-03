@@ -3,7 +3,7 @@ Param(
     [switch]$Follow
 )
 
-# Collect compose status and container logs for api/db/redis into ./logs/<timestamp>
+# Collect compose status and container logs for api/db into ./logs/<timestamp>
 $PROJECT = Split-Path -Leaf (Get-Location)
 $DC = "docker"
 
@@ -24,14 +24,13 @@ try {
 # Get container ids
 $API_ID  = ((& $DC 'compose' -p $PROJECT ps -q api) -join "").Trim()
 $DB_ID   = ((& $DC 'compose' -p $PROJECT ps -q db) -join "").Trim()
-$REDIS_ID= ((& $DC 'compose' -p $PROJECT ps -q redis) -join "").Trim()
 
-Set-Content -Path (Join-Path $logdir "container_ids.txt") -Value @("api=$API_ID","db=$DB_ID","redis=$REDIS_ID") -Force
+Set-Content -Path (Join-Path $logdir "container_ids.txt") -Value @("api=$API_ID","db=$DB_ID") -Force
 
 Write-Output "Container ids saved to container_ids.txt"
 
 # Capture recent logs for each service
-$services = @('api','db','redis')
+$services = @('api','db')
 foreach ($svc in $services) {
     $outFile = Join-Path $logdir "$svc.log"
     Write-Output "Saving last 500 lines of logs for service: $svc -> $outFile"

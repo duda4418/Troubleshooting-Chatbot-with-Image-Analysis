@@ -249,23 +249,19 @@ if ($Restore) {
   exit 0
 }
 
-# -------- REBUILD (recreate db + redis only) --------
+# -------- REBUILD (recreate db only) --------
 if ($Rebuild) {
-  Write-Host "Rebuild: recreating 'db' and 'redis' services (containers + service volumes) only..." -ForegroundColor Red
+  Write-Host "Rebuild: recreating 'db' service (container + service volumes) only..." -ForegroundColor Red
 
-  # Remove the db and redis containers (and anonymous volumes attached to them) only.
-  # This avoids bringing down the entire compose project and preserves other services.
-  Write-Host "Removing existing 'db' and 'redis' containers (if present)..." -ForegroundColor Yellow
-  Compose-Run -Args @("-p",$ProjectName,"rm","-s","-f","-v","db","redis") | Out-Null
+  Write-Host "Removing existing 'db' container (if present)..." -ForegroundColor Yellow
+  Compose-Run -Args @("-p",$ProjectName,"rm","-s","-f","-v","db") | Out-Null
 
-  # Recreate db and redis without affecting other services (--no-deps + --force-recreate)
-  Write-Host "Recreating 'db' and 'redis'..." -ForegroundColor Yellow
-  Compose-Run -Args @("-p",$ProjectName,"up","-d","--no-deps","--force-recreate","db","redis") | Out-Null
+  Write-Host "Recreating 'db'..." -ForegroundColor Yellow
+  Compose-Run -Args @("-p",$ProjectName,"up","-d","--no-deps","--force-recreate","db") | Out-Null
 
   Wait-DbHealthy
-  # Run migrations after db is healthy using the live backend sources
   Compose-RunBackend -MountBackend -Args @("alembic","upgrade","head")
-  Write-Host "Rebuild complete (db + redis)." -ForegroundColor Green
+  Write-Host "Rebuild complete (db)." -ForegroundColor Green
   exit 0
 }
 
