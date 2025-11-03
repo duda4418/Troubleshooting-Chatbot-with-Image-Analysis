@@ -45,7 +45,7 @@ const ConversationView = ({
       return;
     }
 
-    const margin = Math.max(composerHeight + 24, 96);
+    const margin = Math.max(composerHeight + 16, 64);
     marker.style.scrollMarginBottom = `${margin}px`;
   }, [composerHeight]);
 

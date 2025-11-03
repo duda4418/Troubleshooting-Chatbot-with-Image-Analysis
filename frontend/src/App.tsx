@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Route, Routes, useNavigate, useParams } from "react-router-dom";
+import { Navigate, Outlet, Route, Routes, useMatch, useNavigate } from "react-router-dom";
 import Header from "layout/Header";
-import Sidebar from "layout/Sidebar";
 import Footer from "layout/Footer";
-import ConversationView from "components/ConversationView";
 import NotificationOverlay from "components/NotificationOverlay";
+import ConversationDashboardPage from "pages/ConversationDashboardPage";
+import ConversationDetailPage from "pages/ConversationDetailPage";
 import {
   fetchSessions,
   fetchSessionHistory,
@@ -27,8 +27,6 @@ import type {
   MessageMetadata,
   ToolCallMetadata
 } from "./types";
-
-const SIDEBAR_STORAGE_KEY = "kmp-sidebar-open";
 
 const sessionDateFormatter = new Intl.DateTimeFormat("en", {
   dateStyle: "medium",
@@ -504,19 +502,54 @@ const deriveSessionTitle = (
   return `Session ${fallbackIndex + 1}`;
 };
 
-function ChatPage() {
-  const navigate = useNavigate();
-  const { sessionId: sessionIdParam } = useParams<{ sessionId?: string }>();
+export interface ChatOutletContext {
+  sessions: ConversationSession[];
+  isLoadingSessions: boolean;
+  refreshSessions: () => Promise<void>;
+  selectSession: (sessionId: string) => void;
+  startNewConversation: () => void;
+  messages: ChatMessage[];
+  isLoadingMessages: boolean;
+  isSending: boolean;
+  sendMessage: ({
+    message,
+    attachments,
+    metadata,
+    forceSend,
+  }: {
+    message: string;
+    attachments: File[];
+    metadata?: Record<string, unknown>;
+    forceSend?: boolean;
+  }) => Promise<void>;
+  canCompose: boolean;
+  feedbackSubmitted: boolean;
+  submitFeedback?: (rating: number, comment?: string) => Promise<void>;
+  activeSessionId: string | null;
+  activeSession: ConversationSession | null;
+  sessionClosed: boolean;
+  navigateToDashboard: () => void;
+  loadHistory: (sessionId: string) => Promise<void>;
+}
 
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+function ChatLayout() {
+  const navigate = useNavigate();
+  const matchConversation = useMatch("/c/:sessionId");
+  const matchConversationRoot = useMatch({ path: "/c", end: true });
+
   const [sessions, setSessions] = useState<ConversationSession[]>([]);
-  const [activeSessionId, setActiveSessionId] = useState<string | null>(sessionIdParam ?? null);
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(() => {
+    const sessionId = matchConversation?.params.sessionId;
+    if (!sessionId || sessionId === "new") {
+      return null;
+    }
+    return sessionId;
+  });
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoadingSessions, setIsLoadingSessions] = useState(false);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [shouldAutoSelect, setShouldAutoSelect] = useState(true);
 
   const activeSession = useMemo(
     () =>
@@ -532,27 +565,25 @@ function ChatPage() {
   const feedbackSubmitted = Boolean(activeSession?.feedbackRating);
 
   useEffect(() => {
-    setActiveSessionId(sessionIdParam ?? null);
-  }, [sessionIdParam]);
+    if (matchConversation?.params.sessionId) {
+      const { sessionId } = matchConversation.params;
+      if (sessionId && sessionId !== activeSessionId) {
+        setActiveSessionId(sessionId === "new" ? null : sessionId);
+      }
+      return;
+    }
 
-  useEffect(() => {
-    if (typeof window === "undefined") {
+    if (matchConversationRoot) {
+      if (activeSessionId !== null) {
+        setActiveSessionId(null);
+      }
       return;
     }
-    const stored = window.localStorage.getItem(SIDEBAR_STORAGE_KEY);
-    if (stored !== null) {
-      setSidebarOpen(stored === "true");
-      return;
-    }
-    setSidebarOpen(window.innerWidth >= 1024);
-  }, []);
 
-  useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
+    if (activeSessionId !== null) {
+      setActiveSessionId(null);
     }
-    window.localStorage.setItem(SIDEBAR_STORAGE_KEY, String(sidebarOpen));
-  }, [sidebarOpen]);
+  }, [activeSessionId, matchConversation, matchConversationRoot]);
 
   const refreshSessions = useCallback(async () => {
     setIsLoadingSessions(true);
@@ -562,11 +593,6 @@ function ChatPage() {
         toConversationSession(session, deriveSessionTitle(session, undefined, index))
       );
       setSessions(mapped);
-      if (mapped.length > 0 && !sessionIdParam && shouldAutoSelect) {
-        const nextId = mapped[0].id;
-        setActiveSessionId(nextId);
-        navigate(`/${nextId}`, { replace: true });
-      }
       setError(null);
     } catch (err) {
       console.error("Failed to load sessions", err);
@@ -574,7 +600,7 @@ function ChatPage() {
     } finally {
       setIsLoadingSessions(false);
     }
-  }, [navigate, sessionIdParam, shouldAutoSelect]);
+  }, []);
 
   const loadHistory = useCallback(
     async (sessionId: string) => {
@@ -618,15 +644,6 @@ function ChatPage() {
     }
   }, [activeSessionId, loadHistory]);
 
-  const handleSelectSession = (sessionId: string) => {
-    setActiveSessionId(sessionId);
-    setShouldAutoSelect(true);
-    navigate(`/${sessionId}`);
-    if (typeof window !== "undefined" && window.innerWidth < 1024) {
-      setSidebarOpen(false);
-    }
-  };
-
   const fileToBase64 = async (file: File): Promise<string> =>
     new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -643,16 +660,11 @@ function ChatPage() {
       reader.readAsDataURL(file);
     });
 
-  const handleSendMessage = async ({
+  const handleSendMessage: ChatOutletContext["sendMessage"] = async ({
     message,
     attachments,
     metadata: extraMetadata,
-    forceSend = false
-  }: {
-    message: string;
-    attachments: File[];
-    metadata?: Record<string, unknown>;
-    forceSend?: boolean;
+    forceSend = false,
   }) => {
     const trimmedMessage = message.trim();
     if (!forceSend && !trimmedMessage && attachments.length === 0) {
@@ -694,9 +706,9 @@ function ChatPage() {
             name: file.name,
             mime_type: file.type,
             base64: encoded[index],
-            size_bytes: file.size
+            size_bytes: file.size,
           })),
-          attachment_count: attachments.length
+          attachment_count: attachments.length,
         };
         rawMetadata = rawMetadata ? { ...attachmentMetadata, ...rawMetadata } : attachmentMetadata;
       }
@@ -726,7 +738,7 @@ function ChatPage() {
             content: placeholderContent,
             timestamp: now,
             metadata: optimisticMetadata,
-            status: "pending"
+            status: "pending",
           });
         }
         next.push({
@@ -736,7 +748,7 @@ function ChatPage() {
           content: "",
           timestamp: now,
           metadata: {} as MessageMetadata,
-          status: "pending"
+          status: "pending",
         });
         return next;
       });
@@ -751,7 +763,7 @@ function ChatPage() {
         text: trimmedMessage.length ? trimmedMessage : undefined,
         images_b64,
         image_mime_types: imageMimeTypes,
-        metadata: requestMetadata
+        metadata: requestMetadata,
       });
 
       if (tempAssistantId) {
@@ -787,7 +799,7 @@ function ChatPage() {
       }
 
       const resolvedSessionId = response.session_id;
-    navigate(`/${resolvedSessionId}`);
+      navigate(`/c/${resolvedSessionId}`);
       setActiveSessionId(resolvedSessionId);
       await refreshSessions();
       await loadHistory(resolvedSessionId);
@@ -821,12 +833,14 @@ function ChatPage() {
     }
   };
 
+  const handleSelectSession = (sessionId: string) => {
+    navigate(`/c/${sessionId}`);
+  };
+
   const handleStartNew = () => {
-    setActiveSessionId(null);
     setMessages([]);
     setError(null);
-    setShouldAutoSelect(false);
-    navigate("/");
+    navigate("/c");
   };
 
   const handleSubmitFeedback = useCallback(
@@ -856,52 +870,37 @@ function ChatPage() {
     [activeSessionId, refreshSessions, sessionClosed]
   );
 
+  const navigateToDashboard = useCallback(() => {
+    navigate("/dashboard");
+  }, [navigate]);
+
+  const contextValue: ChatOutletContext = {
+    sessions,
+    isLoadingSessions,
+    refreshSessions,
+    selectSession: handleSelectSession,
+    startNewConversation: handleStartNew,
+    messages,
+    isLoadingMessages,
+    isSending,
+    sendMessage: handleSendMessage,
+    canCompose,
+    feedbackSubmitted,
+    submitFeedback: canCompose ? undefined : handleSubmitFeedback,
+    activeSessionId,
+    activeSession,
+    sessionClosed,
+    navigateToDashboard,
+    loadHistory,
+  };
+
   return (
     <div className="flex min-h-screen flex-col bg-brand-background text-white">
-      <Header
-        onToggleSidebar={() =>
-          setSidebarOpen((prev) => {
-            const next = !prev;
-            if (typeof window !== "undefined") {
-              window.localStorage.setItem(SIDEBAR_STORAGE_KEY, String(next));
-            }
-            return next;
-          })
-        }
-      />
+      <Header onToggleSidebar={navigateToDashboard} />
       <NotificationOverlay message={error} tone="error" onClose={() => setError(null)} />
 
-      <div className="relative flex flex-1 overflow-hidden lg:overflow-visible">
-        {sidebarOpen ? (
-          <button
-            type="button"
-            onClick={() => setSidebarOpen(false)}
-            className="fixed inset-0 z-20 bg-black/50 transition-opacity lg:hidden"
-            aria-label="Close conversation list"
-          />
-        ) : null}
-  <main className="relative flex-1 px-4 pb-10 pt-6 sm:px-6 sm:pb-12 lg:px-12">
-          <ConversationView
-            messages={messages}
-            loading={isLoadingMessages}
-            isSending={isSending}
-            activeSessionId={activeSessionId}
-            onSendMessage={handleSendMessage}
-            canCompose={canCompose}
-            feedbackSubmitted={feedbackSubmitted}
-            onSubmitFeedback={canCompose ? undefined : handleSubmitFeedback}
-          />
-        </main>
-
-        <Sidebar
-          sessions={sessions}
-          activeSessionId={activeSessionId}
-          open={sidebarOpen}
-          onSelectSession={handleSelectSession}
-          loading={isLoadingSessions}
-          onStartNew={handleStartNew}
-          onToggleSidebar={() => setSidebarOpen((prev) => !prev)}
-        />
+      <div className="flex flex-1 flex-col">
+        <Outlet context={contextValue} />
       </div>
 
       <Footer />
@@ -912,8 +911,13 @@ function ChatPage() {
 function App() {
   return (
     <Routes>
-      <Route path="/" element={<ChatPage />} />
-      <Route path="/:sessionId" element={<ChatPage />} />
+      <Route element={<ChatLayout />}>
+        <Route index element={<Navigate to="dashboard" replace />} />
+        <Route path="dashboard" element={<ConversationDashboardPage />} />
+        <Route path="c" element={<ConversationDetailPage />} />
+        <Route path="c/:sessionId" element={<ConversationDetailPage />} />
+        <Route path="*" element={<Navigate to="dashboard" replace />} />
+      </Route>
     </Routes>
   );
 }
