@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 from typing import List, Optional
 from typing import Literal
@@ -9,13 +8,7 @@ from typing import Literal
 from openai import OpenAI
 
 from app.core.config import settings
-from app.data.DTO import (
-    AssistantAnswer,
-    GeneratedForm,
-    GeneratedFormField,
-    GeneratedFormOption,
-    ResponseGenerationRequest,
-)
+from app.data.DTO import AssistantAnswer, ResponseGenerationRequest
 from pydantic import BaseModel, ConfigDict, Field
 
 logger = logging.getLogger(__name__)
@@ -84,12 +77,10 @@ class ResponseGenerationService:
             "Never include markdown code fences or additional commentary."
         )
 
-        context_sections = self._ensure_content_parts(self._build_context_blocks(request))
-
         return self._client.responses.parse(
             model=self._model,
             instructions=system_prompt,
-            input=[{"role": "user", "content": context_sections}],
+            input=[{"role": "user", "content": self._build_context_blocks(request)}],
             temperature=0.2,
             text_format=AssistantResponsePayload,
         )
@@ -127,177 +118,14 @@ class ResponseGenerationService:
 
         return blocks
 
-    @staticmethod
-    def _ensure_content_parts(value) -> List[dict]:
-        if not isinstance(value, list):
-            return [{"type": "input_text", "text": str(value)}]
-
-        normalized: List[dict] = []
-        for part in value:
-            if isinstance(part, dict) and "type" in part:
-                normalized.append(part)
-            else:
-                normalized.append({"type": "input_text", "text": json.dumps(part) if not isinstance(part, str) else part})
-
-        if not normalized:
-            normalized.append({"type": "input_text", "text": ""})
-
-        return normalized
-
     def _parse_response(self, response) -> AssistantAnswer:
         payload = getattr(response, "output_parsed", None)
-        if isinstance(payload, AssistantResponsePayload):
-            return self._from_typed_payload(payload)
+        if not isinstance(payload, AssistantResponsePayload):
+            message = "OpenAI response did not include the expected structured payload"
+            logger.error(message)
+            raise RuntimeError(message)
 
-        raw_text = self._extract_text(response)
-        legacy_payload = self._coerce_json(raw_text)
-
-        reply = str(legacy_payload.get("reply") or raw_text or "I ran into an issue generating a reply.")
-        action_payload = legacy_payload.get("suggested_actions")
-        suggested_actions = self._ensure_list_of_str(action_payload)
-
-        follow_up_payload = legacy_payload.get("follow_up")
-        follow_up_type = None
-        follow_up_reason = None
-
-        if isinstance(follow_up_payload, dict):
-            follow_up_type = str(
-                follow_up_payload.get("type")
-                or follow_up_payload.get("action")
-                or ""
-            ).strip() or None
-            reason_value = follow_up_payload.get("reason")
-            follow_up_reason = (
-                str(reason_value).strip() if isinstance(reason_value, str) and reason_value.strip() else None
-            )
-        else:
-            legacy_type = legacy_payload.get("follow_up_type") or legacy_payload.get("follow_up_action")
-            if isinstance(legacy_type, str) and legacy_type.strip():
-                follow_up_type = legacy_type.strip()
-            legacy_reason = legacy_payload.get("follow_up_reason")
-            if isinstance(legacy_reason, str) and legacy_reason.strip():
-                follow_up_reason = legacy_reason.strip()
-
-        follow_up_form = None
-
-        confidence_value = legacy_payload.get("confidence")
-        try:
-            confidence = float(confidence_value)
-        except (TypeError, ValueError):
-            confidence = None
-
-        if confidence is not None:
-            confidence = max(0.0, min(confidence, 1.0))
-
-        metadata = {
-            k: v
-            for k, v in legacy_payload.items()
-            if k
-            not in {"reply", "suggested_actions", "follow_up", "follow_up_form", "follow_up_action", "follow_up_type", "follow_up_reason", "confidence"}
-        }
-
-        return AssistantAnswer(
-            reply=reply,
-            suggested_actions=suggested_actions,
-            follow_up_form=follow_up_form,
-            confidence=confidence,
-            metadata=metadata,
-            follow_up_type=follow_up_type,
-            follow_up_reason=follow_up_reason,
-        )
-
-    @staticmethod
-    def _extract_text(response) -> str:
-        chunks: List[str] = []
-        for item in getattr(response, "output", []) or []:
-            if getattr(item, "type", None) == "output_text":
-                chunks.append(getattr(item, "text", ""))
-        if not chunks and hasattr(response, "output_text"):
-            chunks.append(getattr(response, "output_text", ""))
-        return "".join(chunks).strip()
-
-    @staticmethod
-    def _coerce_json(text: str) -> dict:
-        if not text:
-            return {}
-        cleaned = ResponseGenerationService._strip_code_fence(text)
-        try:
-            return json.loads(cleaned)
-        except json.JSONDecodeError:
-            logger.warning("Failed to parse assistant JSON response: %s", text)
-            return {}
-
-    @staticmethod
-    def _strip_code_fence(text: str) -> str:
-        snippet = text.strip()
-        if not snippet.startswith("```"):
-            return snippet
-
-        lines = snippet.splitlines()
-        if not lines:
-            return snippet
-
-        # Drop opening fence (e.g., ``` or ```json)
-        if lines[0].startswith("```"):
-            lines = lines[1:]
-
-        # Drop trailing fence if present
-        if lines and lines[-1].strip().startswith("```"):
-            lines = lines[:-1]
-
-        return "\n".join(lines).strip()
-
-    def _parse_form(self, payload) -> GeneratedForm | None:
-        if not isinstance(payload, dict):
-            return None
-
-        fields_payload = payload.get("fields") or []
-        fields: List[GeneratedFormField] = []
-        for item in fields_payload:
-            if not isinstance(item, dict):
-                continue
-            options_payload = item.get("options") or []
-            options = [
-                GeneratedFormOption(
-                    value=str(option.get("value", option.get("label", "option"))),
-                    label=str(option.get("label", option.get("value", "Option"))),
-                )
-                for option in options_payload
-                if isinstance(option, dict)
-            ]
-            fields.append(
-                GeneratedFormField(
-                    question=str(item.get("question", item.get("label", ""))),
-                    input_type=str(item.get("type", "text")),
-                    required=bool(item.get("required", False)),
-                    placeholder=item.get("placeholder"),
-                    options=options,
-                )
-            )
-
-        if not fields:
-            return None
-
-        return GeneratedForm(
-            title=str(payload.get("title", "Additional details")),
-            description=payload.get("description"),
-            fields=fields,
-        )
-
-    @staticmethod
-    def _ensure_list_of_str(value) -> List[str]:
-        if isinstance(value, list):
-            cleaned: List[str] = []
-            for item in value:
-                if not isinstance(item, str):
-                    item = str(item)
-                text = item.strip()
-                if text:
-                    cleaned.append(text)
-            return cleaned
-        if value:
-            return [str(value).strip()]
-        return []
+        return self._from_typed_payload(payload)
 
     def _from_typed_payload(self, payload: AssistantResponsePayload) -> AssistantAnswer:
         reply = payload.reply.strip() if payload.reply else ""
@@ -321,7 +149,11 @@ class ResponseGenerationService:
         metadata = {}
         extra = getattr(payload, "model_extra", None)
         if isinstance(extra, dict):
-            metadata = {k: v for k, v in extra.items() if k not in {"reply", "suggested_actions", "confidence", "follow_up"}}
+            metadata = {
+                k: v
+                for k, v in extra.items()
+                if k not in {"reply", "suggested_actions", "confidence", "follow_up"}
+            }
 
         return AssistantAnswer(
             reply=reply or "",
