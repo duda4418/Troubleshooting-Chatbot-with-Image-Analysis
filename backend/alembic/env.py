@@ -1,7 +1,7 @@
 from __future__ import annotations
 import os, sys, asyncio, pathlib, logging, traceback
 from logging.config import fileConfig
-from urllib.parse import quote_plus, urlsplit, urlunsplit, parse_qsl, urlencode
+from urllib.parse import quote_plus
 
 from sqlalchemy import pool
 from sqlalchemy.ext.asyncio import create_async_engine
@@ -18,58 +18,42 @@ config = context.config
 if config.config_file_name:
     fileConfig(config.config_file_name)
 
-def _normalize_asyncpg_url(url: str) -> str:
-    """Convert unsupported query params (e.g., sslmode) for asyncpg."""
-    parts = urlsplit(url.strip())
-    query_pairs = parse_qsl(parts.query, keep_blank_values=True)
+def _ensure_asyncpg_scheme(raw_url: str) -> str:
+    stripped = raw_url.strip()
+    if "://" not in stripped:
+        return stripped
 
-    normalized_pairs = []
-    ssl_present = False
-    sslmode_value = None
+    prefix, rest = stripped.split("://", 1)
+    lowered = prefix.lower()
 
-    for key, value in query_pairs:
-        lowered = key.lower()
-        if lowered == "sslmode":
-            sslmode_value = value
-            continue
-        if lowered == "ssl":
-            ssl_present = True
-        normalized_pairs.append((key, value))
-
-    if sslmode_value is not None and not ssl_present:
-        mode = (sslmode_value or "").lower()
-        if mode in {"disable", "off"}:
-            normalized_pairs.append(("ssl", "false"))
-        else:
-            normalized_pairs.append(("ssl", "true"))
-
-    normalized_query = urlencode(normalized_pairs, doseq=True)
-    normalized_url = urlunsplit((parts.scheme, parts.netloc, parts.path, normalized_query, parts.fragment))
-    if "sslmode=" in normalized_url.lower():
-        raise ValueError("Normalized asyncpg URL must not include sslmode query parameter")
-    return normalized_url
+    if lowered == "postgresql+asyncpg":
+        return stripped
+    if lowered in {"postgres", "postgresql", "postgresql+psycopg2"}:
+        return f"postgresql+asyncpg://{rest}"
+    return stripped
 
 
 db_url = os.getenv("DATABASE_URL")
 
 if db_url:
-    db_url = _normalize_asyncpg_url(db_url)
+    db_url = _ensure_asyncpg_scheme(db_url)
 else:
-    pg_user = os.getenv("POSTGRES_USER")
-    pg_password = os.getenv("POSTGRES_PASSWORD")
-    pg_db = os.getenv("POSTGRES_DB")
-    pg_host = os.getenv("POSTGRES_HOST")
-    pg_port = os.getenv("POSTGRES_PORT")
+    pg_user = os.getenv("POSTGRES_USER") or os.getenv("PGUSER")
+    pg_password = os.getenv("POSTGRES_PASSWORD") or os.getenv("PGPASSWORD")
+    pg_db = os.getenv("POSTGRES_DB") or os.getenv("PGDATABASE")
+    pg_host = os.getenv("POSTGRES_HOST") or os.getenv("PGHOST")
+    pg_port = os.getenv("POSTGRES_PORT") or os.getenv("PGPORT")
 
     if not all([pg_user, pg_password, pg_db, pg_host, pg_port]):
         raise RuntimeError(
-            "Provide either DATABASE_URL or POSTGRES_USER/POSTGRES_PASSWORD/POSTGRES_DB/POSTGRES_HOST/POSTGRES_PORT for Alembic migrations."
+            "Provide either DATABASE_URL or POSTGRES/PG environment variables for Alembic migrations."
         )
 
     user_q = quote_plus(pg_user)
     password_q = quote_plus(pg_password)
     db_q = quote_plus(pg_db)
-    db_url = f"postgresql+asyncpg://{user_q}:{password_q}@{pg_host}:{pg_port}/{db_q}"
+    base_url = f"postgresql+asyncpg://{user_q}:{password_q}@{pg_host}:{pg_port}/{db_q}"
+    db_url = base_url
 
 db_url = db_url.rstrip()
 escaped_db_url = db_url.replace("%", "%%")

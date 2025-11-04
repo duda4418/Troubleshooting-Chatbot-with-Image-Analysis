@@ -2,7 +2,6 @@ import logging
 import os
 from contextlib import asynccontextmanager
 from typing import Optional
-from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
@@ -11,43 +10,20 @@ from sqlalchemy.orm import sessionmaker
 logger = logging.getLogger(__name__)
 
 
-def _normalize_asyncpg_url(raw_url: str) -> str:
-    """Ensure the URL works with asyncpg by adjusting scheme and ssl params."""
+def _ensure_asyncpg_scheme(raw_url: str) -> str:
+    """Ensure the DSN uses the asyncpg dialect prefix."""
     stripped = raw_url.strip()
-    parts = urlsplit(stripped)
+    if "://" not in stripped:
+        return stripped
 
-    scheme = parts.scheme
-    if scheme in {"postgres", "postgresql"}:
-        scheme = "postgresql+asyncpg"
-    elif scheme == "postgresql+psycopg2":
-        scheme = "postgresql+asyncpg"
+    prefix, rest = stripped.split("://", 1)
+    lowered = prefix.lower()
 
-    query_pairs = parse_qsl(parts.query, keep_blank_values=True)
-    normalized_pairs = []
-    ssl_present = False
-    sslmode_value = None
-
-    for key, value in query_pairs:
-        lowered = key.lower()
-        if lowered == "sslmode":
-            sslmode_value = value
-            continue
-        if lowered == "ssl":
-            ssl_present = True
-        normalized_pairs.append((key, value))
-
-    if sslmode_value is not None and not ssl_present:
-        mode = (sslmode_value or "").lower()
-        normalized_pairs.append(("ssl", "false" if mode in {"disable", "off"} else "true"))
-
-    normalized_query = urlencode(normalized_pairs, doseq=True)
-    normalized_url = urlunsplit((scheme, parts.netloc, parts.path, normalized_query, parts.fragment))
-
-    # Guard against leaking sslmode through inadvertently
-    if "sslmode=" in normalized_url.lower():  # pragma: no cover - defensive check
-        raise ValueError("Normalized asyncpg URL must not include sslmode query parameter")
-
-    return normalized_url
+    if lowered in {"postgresql+asyncpg"}:
+        return stripped
+    if lowered in {"postgres", "postgresql", "postgresql+psycopg2"}:
+        return f"postgresql+asyncpg://{rest}"
+    return stripped
 
 
 def _mask_db_url(url: str) -> str:
@@ -64,24 +40,19 @@ def build_async_db_url() -> str:
     """Build async database URL from environment variables."""
     env_url = os.environ.get("DATABASE_URL")
     if env_url:
-        normalized = _normalize_asyncpg_url(env_url)
-        logger.info("Using DATABASE_URL for engine: %s", _mask_db_url(normalized))
-        return normalized
+        ensured = _ensure_asyncpg_scheme(env_url)
+        logger.info("Using DATABASE_URL for engine: %s", _mask_db_url(ensured))
+        return ensured
 
-    user = os.environ.get("POSTGRES_USER", "postgres")
-    password = os.environ.get("POSTGRES_PASSWORD", "change_me")
-    database = os.environ.get("POSTGRES_DB", "appdb")
-    host = os.environ.get("POSTGRES_HOST", "db")
-    port = os.environ.get("POSTGRES_PORT", "5432")
-    query = os.environ.get("POSTGRES_QUERY", "").lstrip("?")
+    user = os.environ.get("POSTGRES_USER") or os.environ.get("PGUSER") or "postgres"
+    password = os.environ.get("POSTGRES_PASSWORD") or os.environ.get("PGPASSWORD") or "change_me"
+    database = os.environ.get("POSTGRES_DB") or os.environ.get("PGDATABASE") or "appdb"
+    host = os.environ.get("POSTGRES_HOST") or os.environ.get("PGHOST") or "db"
+    port = os.environ.get("POSTGRES_PORT") or os.environ.get("PGPORT") or "5432"
 
     base_url = f"postgresql+asyncpg://{user}:{password}@{host}:{port}/{database}"
-    if query:
-        base_url = f"{base_url}?{query}"
-
-    normalized = _normalize_asyncpg_url(base_url)
-    logger.info("Using POSTGRES_* vars for engine: %s", _mask_db_url(normalized))
-    return normalized
+    logger.info("Using POSTGRES_* vars for engine: %s", _mask_db_url(base_url))
+    return base_url
 
 
 class DatabaseProvider:
