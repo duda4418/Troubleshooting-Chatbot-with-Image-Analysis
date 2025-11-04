@@ -1,6 +1,7 @@
 import axios from "axios";
 
 const DEFAULT_API_PORT = 8000;
+const AZURE_BACKEND_URL = "https://server-app.jollybeach-b45b73bd.swedencentral.azurecontainerapps.io";
 
 const resolveBaseUrl = (): string => {
   const envValue = import.meta.env.VITE_API_BASE_URL as string | undefined;
@@ -8,7 +9,7 @@ const resolveBaseUrl = (): string => {
   if (envValue) {
     // Allow relative paths such as "/api" to pass straight through.
     if (envValue.startsWith("/")) {
-      return envValue;
+  return envValue.replace(/\/$/, "");
     }
 
     try {
@@ -27,11 +28,20 @@ const resolveBaseUrl = (): string => {
   }
 
   if (typeof window !== "undefined") {
-    const { protocol, hostname } = window.location;
-    return `${protocol}//${hostname}:${DEFAULT_API_PORT}`;
+    const { protocol, hostname, port } = window.location;
+
+    if (hostname.endsWith("azurecontainerapps.io")) {
+      return AZURE_BACKEND_URL;
+    }
+
+    if (port) {
+      return `${protocol}//${hostname}:${port}`;
+    }
+
+    return `${protocol}//${hostname}`;
   }
 
-  return `http://127.0.0.1:${DEFAULT_API_PORT}`;
+  return AZURE_BACKEND_URL;
 };
 
 const apiClient = axios.create({

@@ -20,7 +20,11 @@ class Settings(BaseSettings):
     MAX_IMAGE_BYTES: int = 8 * 1024 * 1024  # 8MB
     LABELS: list[str] = ["dirty", "spots", "residue", "cloudy_glass", "greasy"]
     cors_origins: list[str] = Field(
-        default_factory=lambda: ["http://localhost:5173", "http://127.0.0.1:5173"]
+        default_factory=lambda: [
+            "http://localhost:5173",
+            "http://127.0.0.1:5173",
+            "https://server-app.jollybeach-b45b73bd.swedencentral.azurecontainerapps.io",
+        ]
     )
 
     @field_validator("cors_origins", mode="before")
