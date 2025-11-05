@@ -16,12 +16,15 @@ docker-compose up --build frontend backend
 ```
 
 ## Deploying to Azure Container Apps
-- Provide `DATABASE_URL` (or the individual `POSTGRES_*` variables) in the backend environment. When using a
-	managed connection string that already contains percent escapes such as `%21`, keep them as-is; Alembic now
-	preserves those characters automatically.
-- Set `CORS_ORIGINS` to include your public frontend host.
-- Supply `VITE_API_BASE_URL` when building the frontend image so the SPA points at your hosted backend, e.g.
-	`https://server-app.jollybeach-b45b73bd.swedencentral.azurecontainerapps.io`.
+- Backend: provide `DATABASE_URL`, `SECRET_KEY`, `OPENAI_API_KEY`, and update `CORS_ORIGINS` with the public frontend URL.
+- Frontend: build with the backend host baked in so no code edits are needed later.
+	```
+	docker build \
+	  --build-arg VITE_API_BASE_URL="https://<backend-app>.azurecontainerapps.io" \
+	  -t <registry>/frontend-app:latest frontend
+	```
+- Alternatively, skip the build arg above and set `VITE_API_BASE_URL` as an environment variable in Azure.
+- Push both images and roll the Container Apps revisions as usual.
 
 ## On database schema changes
 ```PowerShell

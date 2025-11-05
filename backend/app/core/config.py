@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -20,12 +20,13 @@ class Settings(BaseSettings):
     MAX_IMAGE_BYTES: int = 8 * 1024 * 1024  # 8MB
     LABELS: list[str] = ["dirty", "spots", "residue", "cloudy_glass", "greasy"]
     cors_origins: list[str] = Field(
+        alias="cors_origins_default",
         default_factory=lambda: [
             "http://localhost:5173",
             "http://127.0.0.1:5173",
-            "https://server-app.jollybeach-b45b73bd.swedencentral.azurecontainerapps.io",
         ]
     )
+    cors_origins_csv: str | None = Field(default=None, alias="CORS_ORIGINS", validation_alias="CORS_ORIGINS")
 
     @field_validator("cors_origins", mode="before")
     @classmethod
@@ -33,6 +34,12 @@ class Settings(BaseSettings):
         if isinstance(value, str):
             return [origin.strip() for origin in value.split(",") if origin.strip()]
         return value
+
+    @model_validator(mode="after")
+    def apply_cors_csv(self) -> "Settings":
+        if isinstance(self.cors_origins_csv, str) and self.cors_origins_csv.strip():
+            self.cors_origins = [origin.strip() for origin in self.cors_origins_csv.split(",") if origin.strip()]
+        return self
 
 
 settings = Settings()
