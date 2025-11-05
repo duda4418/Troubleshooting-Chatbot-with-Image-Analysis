@@ -27,6 +27,11 @@ class Settings(BaseSettings):
         ]
     )
     cors_origins_csv: str | None = Field(default=None, alias="CORS_ORIGINS", validation_alias="CORS_ORIGINS")
+    chroma_url: str | None = Field(default=None, alias="CHROMA_URL")
+    chroma_path: str = Field(default=".chroma", alias="CHROMA_PATH")
+    chroma_collection: str = Field(default="troubleshoot-cases", alias="CHROMA_COLLECTION")
+    chroma_auto_seed: bool = Field(default=True, alias="CHROMA_AUTO_SEED")
+    knowledge_file: str = Field(default="app/data/troubleshoot_map.json", alias="KNOWLEDGE_FILE")
 
     @field_validator("cors_origins", mode="before")
     @classmethod

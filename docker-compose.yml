@@ -7,6 +7,8 @@ services:
       - "8000:8000"
     env_file:
       - ./backend/.env
+    volumes:
+      - ./backend/.chroma:/app/.chroma
     depends_on:
       db:
         condition: service_healthy

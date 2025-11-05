@@ -21,7 +21,12 @@ class KnowledgeSearchTool(BaseTool):
         if not query:
             return AssistantToolResult(tool_name=self.name, success=False, details={"reason": "missing_query"})
 
-        hits: List[KnowledgeHit] = await self._chroma_service.search(query)
+        limit = kwargs.get("limit")
+        try:
+            parsed_limit = int(limit) if limit is not None else 3
+        except (TypeError, ValueError):
+            parsed_limit = 3
+        hits: List[KnowledgeHit] = await self._chroma_service.search(query, limit=max(1, parsed_limit))
         return AssistantToolResult(
             tool_name=self.name,
             success=True,

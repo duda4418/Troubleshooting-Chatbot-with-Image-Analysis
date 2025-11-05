@@ -15,8 +15,11 @@
 docker-compose up --build frontend backend
 ```
 
+The backend stores its local Chroma index inside `backend/.chroma` (mounted into the container). It is safe to delete this directory if you want to force a full reseed.
+
 ## Deploying to Azure Container Apps
 - Backend: provide `DATABASE_URL`, `SECRET_KEY`, `OPENAI_API_KEY`, and update `CORS_ORIGINS` with the public frontend URL.
+- Vector store: add `CHROMA_URL=https://<chroma-endpoint>` when using a hosted Chroma server; omit it to fall back to the baked-in persistent store (the container seeds from `app/data/troubleshoot_map.json`).
 - Frontend: build with the backend host baked in so no code edits are needed later.
 	```
 	docker build \

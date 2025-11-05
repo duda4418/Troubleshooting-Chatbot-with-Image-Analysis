@@ -1,4 +1,5 @@
 from functools import lru_cache
+from pathlib import Path
 
 from app.core.config import settings
 from app.core.database import DatabaseProvider, get_db_provider
@@ -41,7 +42,13 @@ def get_conversation_image_repository() -> ConversationImageRepository:
 
 @lru_cache()
 def get_chroma_service() -> ChromaService:
-    return ChromaService()
+    return ChromaService(
+        chroma_url=settings.chroma_url,
+        chroma_path=settings.chroma_path,
+        collection_name=settings.chroma_collection,
+        knowledge_path=Path(settings.knowledge_file) if settings.knowledge_file else None,
+        auto_seed=settings.chroma_auto_seed,
+    )
 
 
 @lru_cache()
