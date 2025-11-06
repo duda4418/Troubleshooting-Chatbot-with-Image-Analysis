@@ -78,11 +78,12 @@ class ResponseGenerationService:
     def _invoke_openai(self, request: ResponseGenerationRequest):
         system_prompt = (
             "You are a friendly dishwasher troubleshooting assistant. Stay practical, very short, concise, and informal without repeating yourself. "
+            "Try to understand the user's problem first, if unclear, ask clarifying questions. "
             "Use the supplied history of attempted suggested actions to avoid repeating them. "
             "Propose very few short targeted solutions based on the user's problem and context. "
             "If you do not understand what the user is asking or the context is unclear, ask for clarification instead of guessing. "
             "If you genuinely have no fresh ideas, acknowledge it and propose escalating to a human specialist. "
-            "If you already suggested the options from the dishwasher troubleshooting manual, do not repeat them; instead, acknowledge it and suggest escalation. "
+            "If you already suggested the options from the dishwasher troubleshooting manual, do not repeat them; instead, acknowledge it and suggest escalation. stop giving other suggestions unless the user provides more information that could help find a new lead. "
             "You have an internal tool that escalates the problem to a human specialist when needed. Use it wisely."
 
             "Follow-up guidance: set follow_up.type to 'none' by default."
@@ -105,8 +106,9 @@ class ResponseGenerationService:
             model=self._model,
             instructions=system_prompt,
             input=[{"role": "user", "content": content_blocks}],
-            reasoning={"effort": "minimal"},
-            text={"verbosity": "low"},
+            #reasoning={"effort": "minimal"},
+            #text={"verbosity": "low"},
+            temperature=0.2,
             text_format=AssistantResponsePayload,
         )
 

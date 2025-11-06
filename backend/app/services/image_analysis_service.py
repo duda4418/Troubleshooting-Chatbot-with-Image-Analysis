@@ -153,8 +153,9 @@ class ImageAnalysisService:
                     "content": content,
                 }
             ],
-            reasoning={"effort": "minimal"},    
-            text={"verbosity": "low"},
+            #reasoning={"effort": "minimal"},    
+            #text={"verbosity": "low"},
+            temperature=0.2,
             text_format=ImageBatchPayload,
         )
 
