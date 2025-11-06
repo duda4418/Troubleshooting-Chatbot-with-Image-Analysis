@@ -6,7 +6,7 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 
 from app.data.DTO.conversation_context_dto import ConversationAIContext
-from app.data.DTO.knowledge_dto import KnowledgeHit
+from app.data.DTO.troubleshooting_dto import ProblemClassificationResult, SuggestionPlan
 
 
 class UserMessageRequest(BaseModel):
@@ -42,8 +42,8 @@ class ResponseGenerationRequest(BaseModel):
     locale: str
     user_text: str
     context: ConversationAIContext
-    knowledge_hits: List[KnowledgeHit] = Field(default_factory=list)
-    recommendation_summary: Optional[str] = None
+    classification: ProblemClassificationResult
+    suggestion_plan: SuggestionPlan
 
 
 class AssistantAnswer(BaseModel):
@@ -56,10 +56,3 @@ class AssistantAnswer(BaseModel):
     follow_up_reason: Optional[str] = None
 
 
-class MessageFlowResult(BaseModel):
-    session_id: UUID
-    user_message_id: UUID
-    assistant_message_id: UUID
-    answer: AssistantAnswer
-    knowledge_hits: List[KnowledgeHit] = Field(default_factory=list)
-    form_id: Optional[UUID] = None

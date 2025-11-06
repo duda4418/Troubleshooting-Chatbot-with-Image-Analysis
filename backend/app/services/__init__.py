@@ -1,4 +1,4 @@
-from .assistant_service import AssistantService
+from .assistant_workflow_service import AssistantWorkflowService
 from .chroma_service import ChromaService
 from .conversation_context_service import ConversationContextService
 from .image_analysis_service import ImageAnalysisService
@@ -7,9 +7,12 @@ from .feedback_flow_service import FeedbackFlowService
 from .recommendation_tracker import RecommendationTracker
 from .response_generation_service import ResponseGenerationService
 from .metrics_service import MetricsService
+from .problem_classifier_service import ProblemClassifierService
+from .suggestion_planner_service import SuggestionPlannerService
+from .troubleshooting_import_service import TroubleshootingImportService
 
 __all__ = [
-    "AssistantService",
+    "AssistantWorkflowService",
     "ChromaService",
     "ConversationContextService",
     "ImageAnalysisService",
@@ -18,4 +21,7 @@ __all__ = [
     "RecommendationTracker",
     "ResponseGenerationService",
     "MetricsService",
+    "ProblemClassifierService",
+    "SuggestionPlannerService",
+    "TroubleshootingImportService",
 ]

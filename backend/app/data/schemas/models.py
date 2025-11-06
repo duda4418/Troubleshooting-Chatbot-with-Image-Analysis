@@ -5,7 +5,7 @@ from typing import Optional
 from enum import Enum
 from uuid import UUID, uuid4
 
-from sqlalchemy import Column, Enum as SAEnum, Float, String
+from sqlalchemy import Column, Enum as SAEnum, Float, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Field, SQLModel
 
@@ -20,6 +20,13 @@ class MessageRole(str, Enum):
     ASSISTANT = "assistant"
     SYSTEM = "system"
     TOOL = "tool"
+
+
+class SuggestionStatus(str, Enum):
+    SUGGESTED = "suggested"
+    COMPLETED = "completed"
+    NOT_HELPFUL = "not_helpful"
+    ESCALATED = "escalated"
 
 
 class ConversationSession(SQLModel, table=True):
@@ -104,5 +111,77 @@ class ModelUsageLog(SQLModel, table=True):
         description="Raw usage payload and pricing hints for auditability.",
     )
     created_at: datetime = Field(default_factory=utcnow)
+
+
+class ProblemCategory(SQLModel, table=True):
+    __tablename__ = "problem_category"
+
+    id: UUID = Field(default_factory=uuid4, primary_key=True, index=True)
+    slug: str = Field(
+        sa_column=Column(String(length=64), nullable=False, unique=True),
+        description="Stable identifier for referencing this category.",
+    )
+    name: str = Field(sa_column=Column(String(length=128), nullable=False))
+    description: Optional[str] = Field(default=None, sa_column=Column(Text, nullable=True))
+
+
+class ProblemCause(SQLModel, table=True):
+    __tablename__ = "problem_cause"
+    __table_args__ = (
+        UniqueConstraint("category_id", "slug", name="uq_problem_cause_category_slug"),
+    )
+
+    id: UUID = Field(default_factory=uuid4, primary_key=True, index=True)
+    category_id: UUID = Field(foreign_key="problem_category.id", nullable=False, index=True)
+    slug: str = Field(sa_column=Column(String(length=64), nullable=False))
+    name: str = Field(sa_column=Column(String(length=128), nullable=False))
+    description: Optional[str] = Field(default=None, sa_column=Column(Text, nullable=True))
+    detection_hints: list[str] = Field(default_factory=list, sa_column=Column(JSONB, nullable=True))
+    default_priority: int = Field(default=0, nullable=False)
+
+
+class ProblemSolution(SQLModel, table=True):
+    __tablename__ = "problem_solution"
+    __table_args__ = (
+        UniqueConstraint("cause_id", "slug", name="uq_problem_solution_cause_slug"),
+    )
+
+    id: UUID = Field(default_factory=uuid4, primary_key=True, index=True)
+    cause_id: UUID = Field(foreign_key="problem_cause.id", nullable=False, index=True)
+    slug: str = Field(sa_column=Column(String(length=64), nullable=False))
+    title: str = Field(sa_column=Column(String(length=160), nullable=False))
+    summary: Optional[str] = Field(default=None, sa_column=Column(Text, nullable=True))
+    instructions: str = Field(sa_column=Column(Text, nullable=False))
+    step_order: int = Field(default=0, nullable=False)
+    requires_escalation: bool = Field(default=False, nullable=False)
+
+
+class SessionProblemState(SQLModel, table=True):
+    __tablename__ = "session_problem_state"
+
+    session_id: UUID = Field(primary_key=True, foreign_key="conversation_session.id")
+    category_id: Optional[UUID] = Field(default=None, foreign_key="problem_category.id")
+    cause_id: Optional[UUID] = Field(default=None, foreign_key="problem_cause.id")
+    classification_confidence: Optional[float] = Field(default=None, nullable=True)
+    classification_source: Optional[str] = Field(default=None, sa_column=Column(String(length=64), nullable=True))
+    manual_override: bool = Field(default=False, nullable=False)
+    created_at: datetime = Field(default_factory=utcnow)
+    updated_at: datetime = Field(default_factory=utcnow)
+
+
+class SessionSuggestion(SQLModel, table=True):
+    __tablename__ = "session_suggestion"
+
+    id: UUID = Field(default_factory=uuid4, primary_key=True, index=True)
+    session_id: UUID = Field(foreign_key="conversation_session.id", nullable=False, index=True)
+    solution_id: UUID = Field(foreign_key="problem_solution.id", nullable=False, index=True)
+    status: SuggestionStatus = Field(
+        default=SuggestionStatus.SUGGESTED,
+        sa_column=Column(SAEnum(SuggestionStatus, name="suggestion_status_enum"), nullable=False),
+    )
+    notes: Optional[str] = Field(default=None, sa_column=Column(Text, nullable=True))
+    created_at: datetime = Field(default_factory=utcnow)
+    updated_at: datetime = Field(default_factory=utcnow)
+    completed_at: Optional[datetime] = Field(default=None, nullable=True)
 
 

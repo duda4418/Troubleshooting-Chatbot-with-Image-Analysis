@@ -3,23 +3,27 @@ from functools import lru_cache
 from app.core.config import settings
 from app.core.database import DatabaseProvider, get_db_provider
 from app.data.repositories import (
+    ConversationImageRepository,
     ConversationMessageRepository,
     ConversationSessionRepository,
-    ConversationImageRepository,
     ModelUsageRepository,
+    ProblemCategoryRepository,
+    ProblemCauseRepository,
+    ProblemSolutionRepository,
+    SessionProblemStateRepository,
+    SessionSuggestionRepository,
 )
 from app.services import (
-    AssistantService,
-    ChromaService,
+    AssistantWorkflowService,
     ConversationContextService,
-    FeedbackFlowService,
-    FormSubmissionService,
     ImageAnalysisService,
     MetricsService,
-    RecommendationTracker,
+    ProblemClassifierService,
     ResponseGenerationService,
+    SuggestionPlannerService,
+    TroubleshootingImportService,
 )
-from app.tools import KnowledgeSearchTool, MachineConfigTool, TicketTool
+from app.tools import MachineConfigTool
 
 
 @lru_cache()
@@ -46,25 +50,34 @@ def get_conversation_image_repository() -> ConversationImageRepository:
 def get_model_usage_repository() -> ModelUsageRepository:
     return ModelUsageRepository(get_database_provider())
 
-@lru_cache()
-def get_chroma_service() -> ChromaService:
-    return ChromaService()
-
 
 @lru_cache()
-def get_knowledge_search_tool() -> KnowledgeSearchTool:
-    return KnowledgeSearchTool(get_chroma_service())
+def get_problem_category_repository() -> ProblemCategoryRepository:
+    return ProblemCategoryRepository(get_database_provider())
 
+
+@lru_cache()
+def get_problem_cause_repository() -> ProblemCauseRepository:
+    return ProblemCauseRepository(get_database_provider())
+
+
+@lru_cache()
+def get_problem_solution_repository() -> ProblemSolutionRepository:
+    return ProblemSolutionRepository(get_database_provider())
+
+
+@lru_cache()
+def get_session_problem_state_repository() -> SessionProblemStateRepository:
+    return SessionProblemStateRepository(get_database_provider())
+
+
+@lru_cache()
+def get_session_suggestion_repository() -> SessionSuggestionRepository:
+    return SessionSuggestionRepository(get_database_provider())
 
 @lru_cache()
 def get_machine_config_tool() -> MachineConfigTool:
     return MachineConfigTool()
-
-
-@lru_cache()
-def get_ticket_tool() -> TicketTool:
-    return TicketTool()
-
 
 @lru_cache()
 def get_conversation_context_service() -> ConversationContextService:
@@ -72,17 +85,6 @@ def get_conversation_context_service() -> ConversationContextService:
         get_conversation_session_repository(),
         get_conversation_image_repository(),
     )
-
-
-@lru_cache()
-def get_form_submission_service() -> FormSubmissionService:
-    return FormSubmissionService(get_conversation_message_repository())
-
-
-@lru_cache()
-def get_recommendation_tracker() -> RecommendationTracker:
-    return RecommendationTracker(get_conversation_message_repository())
-
 
 @lru_cache()
 def get_image_analysis_service() -> ImageAnalysisService:
@@ -102,24 +104,44 @@ def get_response_generation_service() -> ResponseGenerationService:
 
 
 @lru_cache()
-def get_feedback_flow_service() -> FeedbackFlowService:
-    return FeedbackFlowService()
+def get_problem_classifier_service() -> ProblemClassifierService:
+    return ProblemClassifierService(
+        category_repository=get_problem_category_repository(),
+        cause_repository=get_problem_cause_repository(),
+        session_state_repository=get_session_problem_state_repository(),
+        api_key=settings.OPENAI_API_KEY,
+        response_model=settings.OPENAI_RESPONSE_MODEL,
+    )
 
 
 @lru_cache()
-def get_assistant_service() -> AssistantService:
-    return AssistantService(
+def get_suggestion_planner_service() -> SuggestionPlannerService:
+    return SuggestionPlannerService(
+        solution_repository=get_problem_solution_repository(),
+        session_suggestion_repository=get_session_suggestion_repository(),
+    )
+
+
+@lru_cache()
+def get_assistant_service() -> AssistantWorkflowService:
+    return AssistantWorkflowService(
         session_repository=get_conversation_session_repository(),
         message_repository=get_conversation_message_repository(),
         image_analysis_service=get_image_analysis_service(),
         context_service=get_conversation_context_service(),
-        form_submission_service=get_form_submission_service(),
-        feedback_flow_service=get_feedback_flow_service(),
-        recommendation_tracker=get_recommendation_tracker(),
+        classifier_service=get_problem_classifier_service(),
+        planner_service=get_suggestion_planner_service(),
         response_service=get_response_generation_service(),
         usage_repository=get_model_usage_repository(),
-        knowledge_tool=get_knowledge_search_tool(),
-        ticket_tool=get_ticket_tool(),
+    )
+
+
+@lru_cache()
+def get_troubleshooting_import_service() -> TroubleshootingImportService:
+    return TroubleshootingImportService(
+        category_repository=get_problem_category_repository(),
+        cause_repository=get_problem_cause_repository(),
+        solution_repository=get_problem_solution_repository(),
     )
 
 

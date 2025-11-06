@@ -77,26 +77,14 @@ class ResponseGenerationService:
 
     def _invoke_openai(self, request: ResponseGenerationRequest):
         system_prompt = (
-            "You are a friendly dishwasher troubleshooting assistant. Stay practical, very short, concise, and informal without repeating yourself. "
-            "Try to understand the user's problem first, if unclear, ask clarifying questions. "
-            "Use the supplied history of attempted suggested actions to avoid repeating them. "
-            "Propose very few short targeted solutions based on the user's problem and context. "
-            "If you do not understand what the user is asking or the context is unclear, ask for clarification instead of guessing. "
-            "If you genuinely have no fresh ideas, acknowledge it and propose escalating to a human specialist. "
-            "If you already suggested the options from the dishwasher troubleshooting manual, do not repeat them; instead, acknowledge it and suggest escalation. stop giving other suggestions unless the user provides more information that could help find a new lead. "
-            "You have an internal tool that escalates the problem to a human specialist when needed. Use it wisely."
-
-            "Follow-up guidance: set follow_up.type to 'none' by default."
-            "Choose 'resolution_check' when the latest user input or quick checkin form summary mentions the issue is fixed, resolved or the user mentions the suggestions worked. This is not for checking if things helped, but if the issue appears resolved. "
-            "Reserve 'escalation' for cases where you lack further actionable advice or the user explicitly asks for human help. "
-            
-            "When you are unsure, or the user input does not make sense, request clarifying details before guessing. "
-            "You are STRICTLY limited to dishwasher issues. If the user asks about any non-dishwasher topic, refuse with a helpful reminder that you only support dishwasher troubleshooting. "
-            "If the user asks about any non-dishwasher topic, refuse with a helpful reminder that you only support dishwasher troubleshooting. "
-            "When refusing, set follow_up.type to 'none', leave suggested_actions empty, and provide a short apology plus offer to help with dishwasher topics instead. Do not mention policies or speculate. "
-
-            "Avoid repeating suggestions or advice already given in the context. "
-            "Never include markdown code fences or additional commentary. "
+            "You are a focused dishwasher troubleshooting assistant. Keep replies short, direct, and conversational. "
+            "When the classifier provides clarifying next_questions, ask at most one concise follow-up per turn and only when it drives the diagnosis forward. "
+            "If you also receive a new solution, share the actionable step first, then ask the follow-up question. When no new solutions are available, combine the clarifying need with a brief diagnostic tip so the user can still make progress. "
+            "Avoid repeating identical guidance unless the user specifically requests it, and reference prior attempts when offering an alternative. "
+            "If the plan notes indicate escalation or all steps are exhausted, guide the user toward escalation instead of inventing new fixes. "
+            "Stay strictly within dishwasher troubleshooting. If the topic is outside scope, refuse with a short apology and invite dishwasher questions. "
+            "Follow-up guidance: default follow_up.type to 'none'. Use 'resolution_check' only when the user explicitly states the issue seems resolved. Use 'escalation' when escalation is recommended or the planner escalates. "
+            "Never include code fences or policy discussion. Avoid repeating the same advice across consecutive messages. "
         )
 
         content_blocks = self._build_context_blocks(request)
@@ -115,35 +103,66 @@ class ResponseGenerationService:
     def _build_context_blocks(self, request: ResponseGenerationRequest) -> List[dict]:
         blocks: List[dict] = []
         context = request.context
+        summary_lines: List[str] = []
 
         locale_value = request.locale or "unknown"
-        summary_lines: List[str] = [f"Locale: {locale_value}"]
+        summary_lines.append(f"Locale: {locale_value}")
         if request.user_text:
             summary_lines.append(f"Latest user input: {request.user_text}")
+        else:
+            summary_lines.append("Latest user input: <none provided>")
 
         event_lines = context.events[-15:] if context.events else []
         if event_lines:
             bullet_history = "\n".join(f"- {line}" for line in event_lines)
-            summary_lines.append("Conversation context:\n" + bullet_history)
+            summary_lines.append("Recent conversation events:\n" + bullet_history)
         else:
-            summary_lines.append("Conversation context is currently empty.")
+            summary_lines.append("No prior conversation events available.")
 
-        if request.recommendation_summary:
-            summary_lines.append(
-                "Avoid repeating these troubleshooting attempts:\n" + request.recommendation_summary
+        classification = request.classification
+        classification_lines: List[str] = ["Classifier summary:"]
+        if classification.category:
+            classification_lines.append(
+                f"- Category: {classification.category.slug} – {classification.category.name}"
             )
+        if classification.cause:
+            classification_lines.append(
+                f"- Cause: {classification.cause.slug} – {classification.cause.name}"
+            )
+        if classification.confidence is not None:
+            classification_lines.append(f"- Confidence: {classification.confidence:.2f}")
+        if classification.rationale:
+            classification_lines.append(f"- Rationale: {classification.rationale}")
+        if classification.needs_more_info:
+            classification_lines.append("- Needs more info before proposing fixes.")
+        if classification.next_questions:
+            classification_lines.append("- Clarifying questions to ask:")
+            for question in classification.next_questions[:3]:
+                classification_lines.append(f"  • {question}")
+        if classification.escalate:
+            reason = classification.escalate_reason or "No reason provided"
+            classification_lines.append(f"- Escalation requested: {reason}")
+        summary_lines.append("\n".join(classification_lines))
 
-        if request.knowledge_hits:
-            knowledge_lines: List[str] = []
-            for hit in request.knowledge_hits[:3]:
-                steps_text = "; ".join(hit.steps)
-                entry = f"- {hit.label}: {hit.summary}"
-                if steps_text:
-                    entry = f"{entry} | Suggested steps: {steps_text}"
-                knowledge_lines.append(entry)
-            summary_lines.append(
-                "Suggestions from dishwasher troubleshooting manual:\n" + "\n".join(knowledge_lines)
-            )
+        plan = request.suggestion_plan
+        plan_lines: List[str] = ["Planner output:"]
+        if plan.escalate:
+            plan_lines.append("- Planner recommends escalation. Provide human escalation guidance.")
+        if plan.notes:
+            plan_lines.append(f"- Notes: {plan.notes}")
+        if plan.solutions:
+            plan_lines.append("- Proposed solutions:")
+            for item in plan.solutions:
+                marker = "already suggested" if item.already_suggested else "new"
+                instructions = item.solution.instructions.strip().replace("\n", " ")
+                if len(instructions) > 320:
+                    instructions = instructions[:317].rstrip() + "..."
+                plan_lines.append(
+                    f"  • {item.solution.title} ({marker})\n    Steps: {instructions}"
+                )
+        else:
+            plan_lines.append("- No actionable solutions identified.")
+        summary_lines.append("\n".join(plan_lines))
 
         blocks.append({"type": "input_text", "text": "\n\n".join(summary_lines)})
 

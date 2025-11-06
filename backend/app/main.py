@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routers.assistant import router as assistant_router
+from app.api.routers.troubleshooting_import import router as troubleshooting_import_router
 from app.api.routers.metrics import router as metrics_router
 from app.core.config import settings
 from app.core.database import get_db_provider
@@ -40,3 +41,4 @@ async def healthz():
 
 app.include_router(assistant_router)
 app.include_router(metrics_router)
+app.include_router(troubleshooting_import_router)
