@@ -48,6 +48,13 @@ from .message_flow_dto import (
     ResponseGenerationRequest,
     UserMessageRequest,
 )
+from .metrics_dto import (
+    FeedbackMetrics,
+    SessionUsageMetrics,
+    UsageMetricsResponse,
+    UsageTotals,
+)
+from .usage_dto import ModelUsageDetails
 
 __all__ = [
     "AssistantMessageRequest",
@@ -73,4 +80,9 @@ __all__ = [
     "MessageFlowResult",
     "ResponseGenerationRequest",
     "UserMessageRequest",
+    "FeedbackMetrics",
+    "SessionUsageMetrics",
+    "UsageMetricsResponse",
+    "UsageTotals",
+    "ModelUsageDetails",
 ]

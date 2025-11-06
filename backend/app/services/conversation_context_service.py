@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-import json
-from typing import List, Optional
+from datetime import datetime, timezone
+from typing import List, Optional, Tuple
 from uuid import UUID
 
-from app.data.repositories import ConversationSessionRepository
+from app.data.repositories import ConversationSessionRepository, ConversationImageRepository
 from app.data.schemas.models import MessageRole
 from app.data.DTO.conversation_context_dto import ConversationAIContext
 
@@ -12,38 +12,63 @@ from app.data.DTO.conversation_context_dto import ConversationAIContext
 class ConversationContextService:
     """Create concise conversation context payloads for downstream AI calls."""
 
-    def __init__(self, session_repository: ConversationSessionRepository) -> None:
+    def __init__(
+        self,
+        session_repository: ConversationSessionRepository,
+        image_repository: ConversationImageRepository,
+    ) -> None:
         self._session_repository = session_repository
+        self._image_repository = image_repository
 
     async def get_ai_context(self, session_id: UUID) -> ConversationAIContext:
-        """Return sanitized conversation details for the given session.
+        """Return a trimmed conversation context for downstream AI calls.
 
-    The response captures only the information the OpenAI Responses API needs:
-    user-authored messages, image analysis notes, and assistant replies with
-    relevant metadata rendered as succinct events.
+        We keep only the essential timeline: user inputs, submitted form outcomes,
+        assistant suggested actions, and image analysis results.
         """
 
         aggregate = await self._session_repository.get_context(session_id)
         if not aggregate:
             return ConversationAIContext(session_id=session_id)
 
-        events: List[str] = []
+        event_records: List[Tuple[Optional[datetime], int, str]] = []
+        order = 0
+
+        def add_event(text: Optional[str], timestamp: Optional[datetime]) -> None:
+            nonlocal order
+            if not text:
+                return
+            formatted = self._format_with_timestamp(text, timestamp)
+            event_records.append((timestamp, order, formatted))
+            order += 1
 
         for message in aggregate.get("messages") or []:
             role = getattr(message, "role", None)
+            created_at = getattr(message, "created_at", None)
+            metadata = getattr(message, "message_metadata", {}) or {}
+
             if role == MessageRole.USER:
                 normalized = self._normalize_text(message.content)
                 if normalized:
-                    events.append(f"User message: {normalized}")
+                    add_event(f"User: {normalized}", created_at)
+                for form_event in self._extract_form_events(metadata):
+                    add_event(form_event, created_at)
             elif role == MessageRole.ASSISTANT:
-                assistant_entry = self._format_assistant_event(message)
+                assistant_entry = self._format_suggested_actions(metadata)
                 if assistant_entry:
-                    events.append(assistant_entry)
+                    add_event(assistant_entry, created_at)
+                for form_event in self._extract_form_events(metadata):
+                    add_event(form_event, created_at)
 
-        events.extend(self._build_image_events(aggregate.get("image_descriptions")))
+        for timestamp, text in await self._build_image_events(session_id):
+            add_event(text, timestamp)
+
+        event_records.sort(key=lambda item: (self._normalize_timestamp(item[0]), item[1]))
+        ordered_events = [text for _, _, text in event_records]
+
         return ConversationAIContext(
             session_id=session_id,
-            events=self._trim_events(events),
+            events=self._trim_events(ordered_events),
         )
 
     @staticmethod
@@ -53,48 +78,74 @@ class ConversationContextService:
         cleaned = value.strip()
         return cleaned or None
 
-    def _format_assistant_event(self, message) -> Optional[str]:
-        reply = self._normalize_text(getattr(message, "content", None))
-        metadata = getattr(message, "message_metadata", {}) or {}
-
-        parts: List[str] = []
-        if reply:
-            parts.append(f"Assistant reply: {reply}")
-
+    def _format_suggested_actions(self, metadata: dict) -> Optional[str]:
         actions = self._collect_actions(metadata)
-        if actions:
-            parts.append("Suggested actions: " + "; ".join(actions))
-
-        follow_up_form = metadata.get("follow_up_form")
-        if isinstance(follow_up_form, dict):
-            title = follow_up_form.get("title") or "Follow-up form"
-            parts.append(f"Offered form: {title}")
-
-        form_summary = metadata.get("extra", {}).get("form_summary")
-        if isinstance(form_summary, str) and form_summary.strip():
-            parts.append(f"Form summary: {form_summary.strip()}")
-
-        additional = self._summarize_metadata(metadata)
-        if additional:
-            parts.append(f"Metadata: {additional}")
-
-        if not parts:
+        if not actions:
             return None
+        return "Assistant suggested: " + "; ".join(actions)
 
-        return "\n".join(parts)
+    def _extract_form_events(self, metadata: dict) -> List[str]:
+        if not isinstance(metadata, dict):
+            return []
 
-    def _build_image_events(self, descriptions) -> List[str]:
         events: List[str] = []
-        if not isinstance(descriptions, list):
+
+        summary = metadata.get("follow_up_form_summary")
+        if not summary:
+            extra = metadata.get("extra")
+            if isinstance(extra, dict):
+                summary = extra.get("form_summary")
+        if isinstance(summary, str):
+            summary_clean = summary.strip()
+            if summary_clean:
+                events.append(f"Form submission: {summary_clean}")
+
+        submission = metadata.get("follow_up_form_submission") or metadata.get("follow_up_form_response")
+        if isinstance(submission, dict):
+            status = submission.get("status")
+            choice = submission.get("choice") or submission.get("value") or submission.get("answer")
+            detail_parts: List[str] = []
+            if isinstance(status, str) and status.strip():
+                detail_parts.append(status.strip())
+            if isinstance(choice, str) and choice.strip():
+                detail_parts.append(choice.strip())
+            if detail_parts and not summary:
+                events.append("Form submission: " + " - ".join(detail_parts))
+
+        return events
+
+    async def _build_image_events(self, session_id: UUID) -> List[Tuple[Optional[datetime], str]]:
+        events: List[Tuple[Optional[datetime], str]] = []
+        try:
+            images = await self._image_repository.list_by_session(session_id=session_id, limit=500)
+        except Exception:  # noqa: BLE001
             return events
 
-        for index, desc in enumerate(descriptions, start=1):
-            if not isinstance(desc, str):
+        seen: set[str] = set()
+        for image in images:
+            summary = (image.analysis_text or "").strip()
+            if not summary:
                 continue
-            cleaned = desc.strip()
-            if not cleaned:
+            key = summary.casefold()
+            if key in seen:
                 continue
-            events.append(f"Image analysis {index}: {cleaned}")
+            seen.add(key)
+
+            details: List[str] = []
+            metadata = image.analysis_metadata or {}
+            if isinstance(metadata, dict):
+                detail_source = metadata.get("details")
+                if isinstance(detail_source, list):
+                    details = [str(item).strip() for item in detail_source if str(item).strip()]
+                elif isinstance(detail_source, str) and detail_source.strip():
+                    details = [detail_source.strip()]
+
+            description = summary
+            if details:
+                description = f"{summary} (Image details: {'; '.join(details[:4])})"
+
+            events.append((getattr(image, "created_at", None), f"Image analysis: {description}"))
+
         return events
 
     @staticmethod
@@ -121,44 +172,27 @@ class ConversationContextService:
         return combined
 
     @staticmethod
+    def _format_with_timestamp(text: str, timestamp: Optional[datetime]) -> str:
+        if not isinstance(timestamp, datetime):
+            return text
+        ts = timestamp
+        if ts.tzinfo is not None:
+            ts = ts.astimezone(timezone.utc)
+        return f"[{ts.strftime('%Y-%m-%d %H:%M')} UTC] {text}"
+
+    @staticmethod
+    def _normalize_timestamp(value: Optional[datetime]) -> datetime:
+        if isinstance(value, datetime):
+            ts = value
+            if ts.tzinfo is not None:
+                ts = ts.astimezone(timezone.utc)
+            return ts.replace(tzinfo=None)
+        return datetime.min
+
+    @staticmethod
     def _trim_events(events: List[str], limit: int = 30) -> List[str]:
         if len(events) <= limit:
             return events
         return events[-limit:]
 
-    @staticmethod
-    def _summarize_metadata(metadata: dict) -> Optional[str]:
-        if not isinstance(metadata, dict):
-            return None
-
-        ignore_keys = {"suggested_actions", "follow_up_form"}
-        condensed: dict[str, object] = {}
-
-        for key, value in metadata.items():
-            if key in ignore_keys:
-                continue
-            if value in (None, "", [], {}):
-                continue
-            if key == "extra" and isinstance(value, dict):
-                for extra_key, extra_value in value.items():
-                    if extra_value in (None, "", [], {}):
-                        continue
-                    condensed[f"extra.{extra_key}"] = extra_value
-                continue
-            condensed[key] = value
-
-        if not condensed:
-            return None
-
-        pieces: List[str] = []
-        for key, value in condensed.items():
-            if isinstance(value, (dict, list)):
-                snippet = json.dumps(value, ensure_ascii=False)
-                if len(snippet) > 160:
-                    snippet = snippet[:157] + "..."
-            else:
-                snippet = str(value)
-            pieces.append(f"{key}: {snippet}")
-
-        return "; ".join(pieces)
 

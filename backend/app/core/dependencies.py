@@ -6,6 +6,7 @@ from app.data.repositories import (
     ConversationMessageRepository,
     ConversationSessionRepository,
     ConversationImageRepository,
+    ModelUsageRepository,
 )
 from app.services import (
     AssistantService,
@@ -14,6 +15,7 @@ from app.services import (
     FeedbackFlowService,
     FormSubmissionService,
     ImageAnalysisService,
+    MetricsService,
     RecommendationTracker,
     ResponseGenerationService,
 )
@@ -39,6 +41,11 @@ def get_conversation_message_repository() -> ConversationMessageRepository:
 def get_conversation_image_repository() -> ConversationImageRepository:
     return ConversationImageRepository(get_database_provider())
 
+
+@lru_cache()
+def get_model_usage_repository() -> ModelUsageRepository:
+    return ModelUsageRepository(get_database_provider())
+
 @lru_cache()
 def get_chroma_service() -> ChromaService:
     return ChromaService()
@@ -61,7 +68,10 @@ def get_ticket_tool() -> TicketTool:
 
 @lru_cache()
 def get_conversation_context_service() -> ConversationContextService:
-    return ConversationContextService(get_conversation_session_repository())
+    return ConversationContextService(
+        get_conversation_session_repository(),
+        get_conversation_image_repository(),
+    )
 
 
 @lru_cache()
@@ -87,7 +97,7 @@ def get_image_analysis_service() -> ImageAnalysisService:
 def get_response_generation_service() -> ResponseGenerationService:
     return ResponseGenerationService(
         api_key=settings.OPENAI_API_KEY,
-        reasoning_model=settings.OPENAI_VISION_MODEL,
+        response_model=settings.OPENAI_RESPONSE_MODEL,
     )
 
 
@@ -107,6 +117,16 @@ def get_assistant_service() -> AssistantService:
         feedback_flow_service=get_feedback_flow_service(),
         recommendation_tracker=get_recommendation_tracker(),
         response_service=get_response_generation_service(),
+        usage_repository=get_model_usage_repository(),
         knowledge_tool=get_knowledge_search_tool(),
         ticket_tool=get_ticket_tool(),
+    )
+
+
+@lru_cache()
+def get_metrics_service() -> MetricsService:
+    return MetricsService(
+        session_repository=get_conversation_session_repository(),
+        message_repository=get_conversation_message_repository(),
+        usage_repository=get_model_usage_repository(),
     )

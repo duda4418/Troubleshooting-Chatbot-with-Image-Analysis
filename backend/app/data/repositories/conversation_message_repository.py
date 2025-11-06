@@ -1,7 +1,8 @@
-from typing import List
+from typing import Dict, List
 from uuid import UUID
 
 from sqlmodel import select
+from sqlalchemy import func
 
 from app.core.database import DatabaseProvider
 from app.data.repositories.base_repository import BaseRepository
@@ -42,3 +43,21 @@ class ConversationMessageRepository(BaseRepository[ConversationMessage]):
             )
             result = await session.execute(stmt)
             return list(result.scalars().all())
+
+    async def count_by_sessions(self, session_ids: List[UUID]) -> Dict[UUID, int]:
+        if not session_ids:
+            return {}
+        async with self.db_provider.get_session() as session:
+            stmt = (
+                select(
+                    ConversationMessage.session_id,
+                    func.count(ConversationMessage.id),
+                )
+                .where(ConversationMessage.session_id.in_(session_ids))
+                .group_by(ConversationMessage.session_id)
+            )
+            result = await session.execute(stmt)
+            counts: Dict[UUID, int] = {}
+            for session_id, count in result.all():
+                counts[session_id] = int(count)
+            return counts

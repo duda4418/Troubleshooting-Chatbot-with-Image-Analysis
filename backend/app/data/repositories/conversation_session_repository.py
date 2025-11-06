@@ -1,6 +1,7 @@
-from typing import Optional
+from typing import Optional, Sequence
 from uuid import UUID
 
+from sqlalchemy import func
 from sqlmodel import select
 
 from app.core.database import DatabaseProvider
@@ -85,6 +86,32 @@ class ConversationSessionRepository(BaseRepository[ConversationSession]):
             )
             result = await session.execute(stmt)
             return list(result.scalars().all())
+
+    async def get_many(self, session_ids: Sequence[UUID]) -> list[ConversationSession]:
+        if not session_ids:
+            return []
+        async with self.db_provider.get_session() as session:
+            stmt = (
+                select(ConversationSession)
+                .where(ConversationSession.id.in_(session_ids))
+            )
+            result = await session.execute(stmt)
+            return list(result.scalars().all())
+
+    async def get_feedback_stats(self) -> tuple[Optional[float], int]:
+        async with self.db_provider.get_session() as session:
+            stmt = select(
+                func.avg(ConversationSession.feedback_rating),
+                func.count(ConversationSession.feedback_rating),
+            ).where(ConversationSession.feedback_rating.is_not(None))
+            result = await session.execute(stmt)
+            try:
+                average, count = result.one()
+            except Exception:
+                return None, 0
+            if count is None or count == 0:
+                return None, 0
+            return (float(average) if average is not None else None, int(count))
 
     async def get_context(self, session_id: UUID) -> Optional[dict]:
         """Return conversation context including messages and image analysis descriptions.

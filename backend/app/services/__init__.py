@@ -6,6 +6,7 @@ from .form_submission_service import FormSubmissionService
 from .feedback_flow_service import FeedbackFlowService
 from .recommendation_tracker import RecommendationTracker
 from .response_generation_service import ResponseGenerationService
+from .metrics_service import MetricsService
 
 __all__ = [
     "AssistantService",
@@ -16,4 +17,5 @@ __all__ = [
     "FeedbackFlowService",
     "RecommendationTracker",
     "ResponseGenerationService",
+    "MetricsService",
 ]

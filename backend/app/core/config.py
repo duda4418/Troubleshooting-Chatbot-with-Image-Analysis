@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 
 from pydantic import Field, field_validator, model_validator
@@ -15,7 +16,19 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 60
     refresh_token_expire_days: int = 7
     OPENAI_API_KEY: str = Field(default_factory=lambda: os.getenv("OPENAI_API_KEY", ""))
-    OPENAI_VISION_MODEL: str = Field(default_factory=lambda: os.getenv("MODEL_VISION", "gpt-4o-mini"))
+    OPENAI_RESPONSE_MODEL: str = Field(
+        default_factory=lambda: os.getenv("MODEL_RESPONSE", os.getenv("OPENAI_RESPONSE_MODEL", "gpt-5-mini")),
+        description="Primary text responses model identifier.",
+    )
+    OPENAI_VISION_MODEL: str = Field(
+        default_factory=lambda: os.getenv("MODEL_VISION", os.getenv("OPENAI_VISION_MODEL", "gpt-5-mini")),
+        description="Vision-capable model identifier for image analysis.",
+    )
+    openai_pricing: dict[str, dict[str, float]] = Field(
+        default_factory=dict,
+        alias="OPENAI_PRICING",
+        description="Mapping of model pricing overrides keyed by model name or prefix. Values should be per-1M token costs with 'input' and 'output' keys.",
+    )
     ALLOWED_TYPES: set[str] = {"image/jpeg", "image/png", "image/webp"}
     MAX_IMAGE_BYTES: int = 8 * 1024 * 1024  # 8MB
     LABELS: list[str] = ["dirty", "spots", "residue", "cloudy_glass", "greasy"]
@@ -40,6 +53,23 @@ class Settings(BaseSettings):
         if isinstance(self.cors_origins_csv, str) and self.cors_origins_csv.strip():
             self.cors_origins = [origin.strip() for origin in self.cors_origins_csv.split(",") if origin.strip()]
         return self
+
+    @field_validator("openai_pricing", mode="before")
+    @classmethod
+    def parse_openai_pricing(cls, value: object) -> dict[str, dict[str, float]]:
+        if value in (None, "", {}):
+            return {}
+        if isinstance(value, dict):
+            return value
+        if isinstance(value, str):
+            try:
+                parsed = json.loads(value)
+            except json.JSONDecodeError as exc:  # noqa: F841
+                raise ValueError("OPENAI_PRICING must be valid JSON") from exc
+            if isinstance(parsed, dict):
+                return parsed
+            raise ValueError("OPENAI_PRICING JSON must decode to an object with model pricing data")
+        raise TypeError("OPENAI_PRICING must be provided as a JSON string or dict")
 
 
 settings = Settings()

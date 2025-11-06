@@ -18,18 +18,20 @@ from app.data.DTO import (
     KnowledgeHit,
     ResponseGenerationRequest,
 )
+from app.data.DTO.usage_dto import ModelUsageDetails
 from app.data.DTO.image_analysis_dto import ImageAnalysisRequest
 from app.data.repositories import (
     ConversationMessageRepository,
     ConversationSessionRepository,
+    ModelUsageRepository,
 )
-from app.data.schemas.models import ConversationMessage, ConversationSession, MessageRole
+from app.data.schemas.models import ConversationMessage, ConversationSession, MessageRole, ModelUsageLog
 from app.services.conversation_context_service import ConversationContextService
 from app.services.image_analysis_service import ImageAnalysisService
 from app.services.form_submission_service import FormSubmissionService
 from app.services.feedback_flow_service import FeedbackFlowService
 from app.services.recommendation_tracker import RecommendationTracker
-from app.services.response_generation_service import ResponseGenerationService
+from app.services.response_generation_service import ResponseGenerationResult, ResponseGenerationService
 from app.tools.knowledge_tool import KnowledgeSearchTool
 from app.tools.ticket_tool import TicketTool
 
@@ -50,6 +52,7 @@ class AssistantService:
         feedback_flow_service: FeedbackFlowService,
         recommendation_tracker: RecommendationTracker,
         response_service: ResponseGenerationService,
+        usage_repository: ModelUsageRepository,
         knowledge_tool: Optional[KnowledgeSearchTool] = None,
         ticket_tool: Optional[TicketTool] = None,
     ) -> None:
@@ -61,6 +64,7 @@ class AssistantService:
         self._feedback_flow = feedback_flow_service
         self._recommendation_tracker = recommendation_tracker
         self._response_service = response_service
+        self._usage_repository = usage_repository
         self._knowledge_tool = knowledge_tool
         self._ticket_tool = ticket_tool
         self._random = random.Random()
@@ -122,6 +126,8 @@ class AssistantService:
             completed_status = follow_up_decision.completed_status
 
         knowledge_hits: List[KnowledgeHit] = []
+        usage_details: Optional[ModelUsageDetails] = None
+
         if form_result.skip_response:
             answer = AssistantAnswer(
                 reply="",
@@ -155,7 +161,9 @@ class AssistantService:
                 knowledge_hits=knowledge_hits,
                 recommendation_summary=history.context_summary(),
             )
-            answer = await self._response_service.generate(response_request)
+            generation_result: ResponseGenerationResult = await self._response_service.generate(response_request)
+            answer = generation_result.answer
+            usage_details = generation_result.usage
 
             self._apply_follow_up_directive(
                 answer,
@@ -175,6 +183,13 @@ class AssistantService:
             answer=answer,
             knowledge_hits=knowledge_hits,
         )
+
+        if usage_details:
+            await self._record_usage(
+                session_id=session_id,
+                message_id=assistant_message.id,
+                usage=usage_details,
+            )
 
         if completed_status:
             await self._session_repository.close(session_id, status=completed_status)
@@ -281,9 +296,16 @@ class AssistantService:
             user_prompt=request.text,
         )
         try:
-            await self._image_analysis.analyze_and_store(analysis_request)
+            analysis_result = await self._image_analysis.analyze_and_store(analysis_request)
         except Exception:  # noqa: BLE001
             logger.exception("Image analysis failed for session %s", session_id)
+            return
+        if analysis_result.usage:
+            await self._record_usage(
+                session_id=session_id,
+                message_id=message_id,
+                usage=analysis_result.usage,
+            )
 
     async def _maybe_lookup_knowledge(self, query: Optional[str]) -> List[KnowledgeHit]:
         text = (query or "").strip()
@@ -522,3 +544,35 @@ class AssistantService:
         if not base:
             return addition
         return f"{base}\n\n{addition}"
+
+    async def _record_usage(
+        self,
+        *,
+        session_id: UUID,
+        message_id: Optional[UUID],
+        usage: ModelUsageDetails,
+    ) -> None:
+        if not self._usage_repository:
+            return
+        try:
+            request_type = usage.request_type or "response_generation"
+            log_entry = ModelUsageLog(
+                session_id=session_id,
+                message_id=message_id,
+                request_type=request_type,
+                model=usage.model,
+                input_tokens=usage.input_tokens,
+                output_tokens=usage.output_tokens,
+                total_tokens=usage.total_tokens,
+                cost_input=float(usage.cost_input or 0.0),
+                cost_output=float(usage.cost_output or 0.0),
+                cost_total=float(usage.cost_total or 0.0),
+                usage_metadata={
+                    "pricing_model": usage.pricing_model,
+                    "currency": usage.currency,
+                    "raw_usage": usage.raw_usage,
+                },
+            )
+            await self._usage_repository.create(log_entry)
+        except Exception:  # noqa: BLE001
+            logger.exception("Failed to persist usage metrics for session %s", session_id)
