@@ -134,15 +134,22 @@ class ConversationContextService:
             details: List[str] = []
             metadata = image.analysis_metadata or {}
             if isinstance(metadata, dict):
+                condition = metadata.get("condition")
                 detail_source = metadata.get("details")
                 if isinstance(detail_source, list):
                     details = [str(item).strip() for item in detail_source if str(item).strip()]
                 elif isinstance(detail_source, str) and detail_source.strip():
                     details = [detail_source.strip()]
 
+            tag = None
+            if condition and isinstance(condition, str) and condition.strip():
+                tag = condition.strip().lower()
+
             description = summary
             if details:
                 description = f"{summary} (Image details: {'; '.join(details[:4])})"
+            if tag:
+                description = f"[{tag}] {description}"
 
             events.append((getattr(image, "created_at", None), f"Image analysis: {description}"))
 

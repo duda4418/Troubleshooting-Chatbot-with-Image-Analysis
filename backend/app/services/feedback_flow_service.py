@@ -20,6 +20,13 @@ class FeedbackFlowService:
     def handle_form_submission(self, result: FormProcessingResult) -> FollowUpHandlingDecision:
         kind = (result.form_kind or "").lower()
 
+        if kind == "escalation" and result.escalation_confirmed:
+            return FollowUpHandlingDecision(
+                handled=True,
+                answer=self.build_escalation_confirmation(),
+                completed_status="escalated",
+            )
+
         if kind == "resolution_check":
             if result.resolution_confirmed is True:
                 return FollowUpHandlingDecision(
@@ -105,5 +112,39 @@ class FeedbackFlowService:
                 "form_kind": "resolution_check",
                 "follow_up_type": "resolution_check",
                 "follow_up_reason": "Positive feedback checkpoint",
+            },
+        )
+
+    @staticmethod
+    def build_escalation_form() -> GeneratedForm:
+        return GeneratedForm(
+            title="Talk to a specialist",
+            description="Would you like to hand this over to a human technician?",
+            fields=[
+                GeneratedFormField(
+                    question="Do you want to escalate to a technician?",
+                    input_type="single_choice",
+                    required=True,
+                    options=[
+                        GeneratedFormOption(value="yes", label="Yes, escalate it"),
+                        GeneratedFormOption(value="no", label="Not yet"),
+                    ],
+                )
+            ],
+        )
+
+    @staticmethod
+    def build_escalation_confirmation() -> AssistantAnswer:
+        return AssistantAnswer(
+            reply=(
+                "Understood—we'll hand this over to a specialist. You'll be contacted with next steps shortly."
+            ),
+            suggested_actions=[],
+            follow_up_form=None,
+            confidence=None,
+            metadata={
+                "form_kind": "escalation",
+                "follow_up_type": "escalation",
+                "follow_up_reason": "User confirmed escalation",
             },
         )

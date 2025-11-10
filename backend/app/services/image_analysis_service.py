@@ -29,6 +29,10 @@ class ImageObservationPayload(BaseModel):
     description: str = Field(description="Short clause describing what is visible in the image")
     confidence: float = Field(ge=0, le=1, description="Confidence score between 0 and 1")
     label: str | None = Field(default=None, description="Concise subject name if available")
+    condition: str = Field(
+        description=
+        "One of: clean, issue, or uncertain. Use clean when items look resolved or spotless; issue when clear symptoms remain; uncertain when the photo is inconclusive."
+    )
     details: List[str] = Field(default_factory=list, description="List of factual visual observations")
 
 
@@ -129,6 +133,7 @@ class ImageAnalysisService:
                     f"{locale_line}\n"
                     f"You received {image_count} image(s). Respond with valid JSON only. Provide exactly {image_count} entries in the 'images' array, one per image in the same order. "
                     "Each description must remain specific to its image. Provide a 'label' for each entry summarizing key issues or conditions using short keywords (e.g., 'dirty dishes', 'cloudy glass'). "
+                    "Include a 'condition' field using one of: clean, issue, uncertain. Choose clean when the scene appears resolved or spotless; choose issue when clear symptoms remain; choose uncertain when the photo is ambiguous or unrelated. "
                     "Details must be direct visual observations, not recommendations.\n"
                     f"User note: {user_prompt}"
                 ).strip(),
@@ -138,8 +143,9 @@ class ImageAnalysisService:
         instructions = (
             "You describe appliance-related photos in neutral, observational language. "
             "Return JSON with an 'images' array containing one entry for each input image in the same order. "
-            "Each entry must include description, confidence, label, and details (list of factual observations). "
+            "Each entry must include description, confidence, label, condition, and details (list of factual observations). "
             "Labels must be concise issue keywords or conditions (e.g., 'rust spots', 'clean dishes', 'cloudy glass') and must never be empty. "
+            "Condition must be one of clean, issue, or uncertain. Use clean when everything looks normal or resolved; issue when symptoms remain visible; uncertain when the photo is unclear or unrelated. "
             "Do not combine observations across images. Do not provide troubleshooting advice, next steps, or instructions." \
             "If the images are unclear or do not contain dishwasher-related content, state this fact in the description and set confidence to 0.0." \
         )
@@ -171,11 +177,13 @@ class ImageAnalysisService:
             description = item.description.strip()
             label = item.label.strip() if item.label and item.label.strip() else ""
             details = [detail.strip() for detail in item.details if detail and detail.strip()]
+            condition = item.condition.strip().lower() if item.condition else "uncertain"
             observations.append(
                 ImageObservationSummary(
                     description=description,
                     confidence=self._coerce_confidence(item.confidence),
                     label=self._derive_label(description, details, label),
+                    condition=condition,
                     details=details,
                 )
             )
@@ -195,16 +203,19 @@ class ImageAnalysisService:
                 metadata_details = observation.details
                 metadata_label = observation.label
                 metadata_confidence = observation.confidence
+                metadata_condition = observation.condition
             else:
                 image.analysis_text = ""
                 metadata_details = []
                 metadata_label = "unavailable"
                 metadata_confidence = 0.0
+                metadata_condition = "uncertain"
 
             image.analysis_metadata = {
                 "confidence": metadata_confidence,
                 "label": metadata_label,
                 "details": metadata_details,
+                "condition": metadata_condition,
                 "image_index": index,
                 "source": image.analysis_metadata.get("source"),
             }

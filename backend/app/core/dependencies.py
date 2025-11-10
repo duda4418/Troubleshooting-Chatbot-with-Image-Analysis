@@ -16,7 +16,9 @@ from app.data.repositories import (
 from app.services import (
     AssistantWorkflowService,
     ConversationContextService,
+    FeedbackFlowService,
     ImageAnalysisService,
+    FormSubmissionService,
     MetricsService,
     ProblemClassifierService,
     ResponseGenerationService,
@@ -123,6 +125,16 @@ def get_suggestion_planner_service() -> SuggestionPlannerService:
 
 
 @lru_cache()
+def get_form_submission_service() -> FormSubmissionService:
+    return FormSubmissionService(get_conversation_message_repository())
+
+
+@lru_cache()
+def get_feedback_flow_service() -> FeedbackFlowService:
+    return FeedbackFlowService()
+
+
+@lru_cache()
 def get_assistant_service() -> AssistantWorkflowService:
     return AssistantWorkflowService(
         session_repository=get_conversation_session_repository(),
@@ -133,6 +145,8 @@ def get_assistant_service() -> AssistantWorkflowService:
         planner_service=get_suggestion_planner_service(),
         response_service=get_response_generation_service(),
         usage_repository=get_model_usage_repository(),
+        form_submission_service=get_form_submission_service(),
+        feedback_flow_service=get_feedback_flow_service(),
     )
 
 

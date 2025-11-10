@@ -19,6 +19,7 @@ class ImageObservationSummary(BaseModel):
     description: str
     confidence: float
     label: str
+    condition: Optional[str] = None
     details: List[str] = Field(default_factory=list)
 
 

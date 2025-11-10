@@ -28,7 +28,9 @@ from app.data.repositories import (
 )
 from app.data.schemas.models import ConversationMessage, ConversationSession, MessageRole, ModelUsageLog
 from app.services.conversation_context_service import ConversationContextService
-from app.services.image_analysis_service import ImageAnalysisService
+from app.services.feedback_flow_service import FeedbackFlowService
+from app.services.form_submission_service import FormProcessingResult, FormSubmissionService
+from app.services.image_analysis_service import ImageAnalysisResult, ImageAnalysisService
 from app.services.problem_classifier_service import ProblemClassifierService
 from app.services.response_generation_service import ResponseGenerationResult, ResponseGenerationService
 from app.services.suggestion_planner_service import SuggestionPlannerService
@@ -45,6 +47,7 @@ class ClassificationEnvelope(BaseModel):
     category: Optional[Dict[str, str]] = None
     cause: Optional[Dict[str, str]] = None
     questions: List[str] = Field(default_factory=list)
+    request_type: Optional[str] = None
 
 
 class PlannedSolutionEnvelope(BaseModel):
@@ -75,6 +78,8 @@ class AssistantWorkflowService:
         planner_service: SuggestionPlannerService,
         response_service: ResponseGenerationService,
         usage_repository: ModelUsageRepository,
+        form_submission_service: FormSubmissionService,
+        feedback_flow_service: FeedbackFlowService,
     ) -> None:
         self._session_repository = session_repository
         self._message_repository = message_repository
@@ -84,6 +89,8 @@ class AssistantWorkflowService:
         self._planner = planner_service
         self._response_service = response_service
         self._usage_repository = usage_repository
+        self._form_submission = form_submission_service
+        self._feedback_flow = feedback_flow_service
 
     async def handle_message(self, request: AssistantMessageRequest) -> AssistantMessageResponse:
         session = await self._get_or_create_session(request.session_id)
@@ -96,6 +103,10 @@ class AssistantWorkflowService:
         if request.images_b64:
             metadata["image_count"] = len(request.images_b64)
 
+        form_result = await self._form_submission.process(session_id, metadata)
+        if form_result.metadata_updates:
+            metadata.update(form_result.metadata_updates)
+
         user_message = await self._persist_user_message(
             session_id=session_id,
             content=user_text,
@@ -107,6 +118,25 @@ class AssistantWorkflowService:
 
         context = await self._context_service.get_ai_context(session_id)
 
+        decision = self._feedback_flow.handle_form_submission(form_result)
+        if decision.handled and decision.answer:
+            assistant_message = await self._persist_assistant_message(
+                session_id=session_id,
+                answer=decision.answer,
+            )
+            if decision.completed_status:
+                await self._session_repository.set_status(session_id, decision.completed_status)
+            else:
+                await self._session_repository.touch(session_id)
+            return AssistantMessageResponse(
+                session_id=session_id,
+                user_message_id=user_message.id,
+                assistant_message_id=assistant_message.id,
+                answer=decision.answer,
+                knowledge_hits=[],
+                form_id=None,
+            )
+
         classification = await self._safe_classify(
             ProblemClassificationRequest(
                 session_id=session_id,
@@ -116,13 +146,45 @@ class AssistantWorkflowService:
             )
         )
 
-        suggestion_plan = await self._safe_plan(
-            SuggestionPlannerRequest(
-                session_id=session_id,
-                classification=classification,
-                max_suggestions=1,
+        suggestion_plan: SuggestionPlan
+        request_type = (classification.request_type or "troubleshoot").lower()
+        if request_type == "resolution_check":
+            classification.escalate = False
+            classification.escalate_reason = None
+            classification.needs_more_info = False
+            classification.next_questions = []
+            suggestion_plan = SuggestionPlan(
+                solutions=[],
+                escalate=False,
+                notes="User reports the issue is resolved; confirm closure.",
             )
-        )
+        elif request_type == "escalation":
+            classification.escalate = True
+            classification.escalate_reason = classification.escalate_reason or "User requested human assistance."
+            classification.needs_more_info = False
+            classification.next_questions = []
+            suggestion_plan = SuggestionPlan(
+                solutions=[],
+                escalate=True,
+                notes=classification.escalate_reason,
+            )
+        elif request_type == "clarification":
+            classification.needs_more_info = True
+            classification.escalate = False
+            classification.escalate_reason = None
+            suggestion_plan = SuggestionPlan(
+                solutions=[],
+                escalate=False,
+                notes=classification.rationale or "Need clearer details before planning steps.",
+            )
+        else:
+            suggestion_plan = await self._safe_plan(
+                SuggestionPlannerRequest(
+                    session_id=session_id,
+                    classification=classification,
+                    max_suggestions=1,
+                )
+            )
 
         response_request = ResponseGenerationRequest(
             session_id=session_id,
@@ -136,6 +198,12 @@ class AssistantWorkflowService:
         answer = generation_result.answer
 
         self._embed_structured_metadata(answer, classification, suggestion_plan)
+        self._attach_follow_up_forms(
+            answer,
+            classification,
+            suggestion_plan,
+            form_result,
+        )
 
         assistant_message = await self._persist_assistant_message(
             session_id=session_id,
@@ -151,7 +219,7 @@ class AssistantWorkflowService:
                 usage=generation_result.usage,
             )
 
-        if suggestion_plan.escalate:
+        if suggestion_plan.escalate and not answer.follow_up_form:
             await self._session_repository.set_status(session_id, "escalated")
         else:
             await self._session_repository.touch(session_id)
@@ -226,6 +294,7 @@ class AssistantWorkflowService:
             escalate=classification.escalate,
             escalate_reason=classification.escalate_reason,
             needs_more_info=classification.needs_more_info,
+            request_type=classification.request_type,
         )
         if classification.category:
             payload.category = {
@@ -305,7 +374,7 @@ class AssistantWorkflowService:
         session_id: UUID,
         message_id: UUID,
         request: AssistantMessageRequest,
-    ) -> None:
+    ) -> Optional[ImageAnalysisResult]:
         analysis_request = ImageAnalysisRequest(
             session_id=session_id,
             message_id=message_id,
@@ -318,13 +387,100 @@ class AssistantWorkflowService:
             analysis_result = await self._image_analysis.analyze_and_store(analysis_request)
         except Exception:  # noqa: BLE001
             logger.exception("Image analysis failed for session %s", session_id)
-            return
+            return None
         if analysis_result.usage:
             await self._record_usage(
                 session_id=session_id,
                 message_id=message_id,
                 usage=analysis_result.usage,
             )
+        return analysis_result
+
+    def _attach_follow_up_forms(
+        self,
+        answer: AssistantAnswer,
+        classification: ProblemClassificationResult,
+        plan: SuggestionPlan,
+        form_result: FormProcessingResult,
+    ) -> None:
+        metadata: Dict[str, Any] = dict(answer.metadata or {})
+        existing_form = answer.follow_up_form
+
+        declared_type = answer.follow_up_type or metadata.get("follow_up_type")
+        declared_reason = answer.follow_up_reason or metadata.get("follow_up_reason")
+
+        request_type_value = (classification.request_type or "").lower()
+
+        if not declared_type:
+            if request_type_value == "escalation" or plan.escalate or classification.escalate:
+                declared_type = "escalation"
+                declared_reason = (
+                    classification.escalate_reason
+                    or plan.notes
+                    or "Escalation recommended by planner."
+                )
+            elif request_type_value == "resolution_check":
+                declared_type = "resolution_check"
+                declared_reason = declared_reason or plan.notes or classification.rationale or "Confirm the issue is fully resolved."
+            else:
+                return
+
+        if declared_type == "escalation":
+            if form_result.form_kind == "escalation" and form_result.escalation_confirmed is False:
+                # Respect the user's latest decision.
+                plan.escalate = False
+                classification.escalate = False
+                metadata.update(
+                    {
+                        "form_kind": "escalation",
+                        "follow_up_type": "none",
+                        "follow_up_reason": "User declined escalation",
+                    }
+                )
+                answer.follow_up_type = None
+                answer.follow_up_reason = None
+                answer.metadata = metadata
+                return
+
+            if not existing_form or metadata.get("form_kind") != "escalation":
+                answer.follow_up_form = self._feedback_flow.build_escalation_form()
+
+            answer.follow_up_type = "escalation"
+            answer.follow_up_reason = declared_reason
+            metadata.update(
+                {
+                    "form_kind": "escalation",
+                    "follow_up_type": "escalation",
+                    "follow_up_reason": declared_reason,
+                }
+            )
+            answer.metadata = metadata
+            return
+
+        if declared_type == "resolution_check":
+            if not existing_form or metadata.get("form_kind") != "resolution_check":
+                answer.follow_up_form = self._feedback_flow.build_resolution_form()
+
+            reason = declared_reason or "Confirm the issue is fully resolved."
+            answer.follow_up_type = "resolution_check"
+            answer.follow_up_reason = reason
+            metadata.update(
+                {
+                    "form_kind": "resolution_check",
+                    "follow_up_type": "resolution_check",
+                    "follow_up_reason": reason,
+                }
+            )
+            answer.metadata = metadata
+            return
+
+        # If the service requested "none", keep any existing metadata aligned.
+        metadata["follow_up_type"] = "none"
+        if declared_reason:
+            metadata["follow_up_reason"] = declared_reason
+        answer.follow_up_type = None
+        answer.follow_up_reason = declared_reason
+        answer.metadata = metadata
 
     async def _record_usage(
         self,

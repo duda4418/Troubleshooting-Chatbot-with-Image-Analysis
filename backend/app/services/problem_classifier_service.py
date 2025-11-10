@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Dict, Iterable, List, Optional
+from typing import Dict, Iterable, List, Optional, Literal
 from uuid import UUID
 
 from openai import OpenAI  # type: ignore[import-untyped]
@@ -58,6 +58,10 @@ class ClassificationPayload(BaseModel):
     needs_more_info: bool = Field(
         default=False,
         description="Set true when more details are required before suggesting actions.",
+    )
+    request_type: Optional[Literal["troubleshoot", "resolution_check", "escalation", "clarification"]] = Field(
+        default=None,
+        description="High-level intent inferred from the latest user input. Defaults to 'troubleshoot' when not specified.",
     )
 
 
@@ -118,8 +122,10 @@ class ProblemClassifierService:
             "If you are at least moderately confident (confidence >= 0.6) in one cause, you may return that cause_slug while still asking for confirmation. "
             "Generate at most two clarifying questions, only when genuinely needed, and avoid repeating questions that already appear in the conversation context. "
             "Populate next_questions with targeted follow-ups that help disambiguate causes or confirm symptoms. "
-            "Only recommend escalation if the evidence suggests a hardware failure or the catalog offers no viable path. "
-            "Set needs_more_info true when clarification is required before planning.")
+            "Only recommend escalation if the evidence suggests a hardware failure, the catalog offers no viable path, or the user explicitly asks for a human technician. "
+            "Set needs_more_info true when clarification is required before planning. "
+            "Also populate request_type with one of: troubleshoot (default when actively diagnosing), resolution_check (when the user indicates the problem appears solved or is just confirming success), escalation (when the user explicitly wants human help or escalation is clearly required), or clarification (when the latest user input is ambiguous, unrelated, or lacks enough detail to classify). "
+            "If the user input is pure noise, empty, or contradictory to clean imagery, choose request_type=clarification and leave category_slug null unless strong evidence suggests otherwise.")
 
         catalog_block = self._build_catalog_block(catalog)
         context_block = self._build_context_block(request)
@@ -190,6 +196,7 @@ class ProblemClassifierService:
             escalate_reason=payload.escalate_reason,
             needs_more_info=payload.needs_more_info or bool(payload.next_questions),
             next_questions=self._select_follow_up_questions(payload.next_questions),
+            request_type=payload.request_type,
         )
 
     async def _persist_session_state(self, session_id: UUID, result: ProblemClassificationResult) -> None:

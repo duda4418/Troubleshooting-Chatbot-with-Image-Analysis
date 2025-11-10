@@ -55,6 +55,7 @@ class ProblemClassificationResult(BaseModel):
     escalate_reason: Optional[str] = None
     needs_more_info: bool = False
     next_questions: List[str] = Field(default_factory=list)
+    request_type: Optional[str] = None
 
 
 class SuggestionPlannerRequest(BaseModel):

@@ -81,9 +81,9 @@ class ResponseGenerationService:
             "When the classifier provides clarifying next_questions, ask at most one concise follow-up per turn and only when it drives the diagnosis forward. "
             "If you also receive a new solution, share the actionable step first, then ask the follow-up question. When no new solutions are available, combine the clarifying need with a brief diagnostic tip so the user can still make progress. "
             "Avoid repeating identical guidance unless the user specifically requests it, and reference prior attempts when offering an alternative. "
-            "If the plan notes indicate escalation or all steps are exhausted, guide the user toward escalation instead of inventing new fixes. "
+            "If the plan notes indicate escalation, all steps are exhausted, or the user explicitly asks for human help, guide the user toward escalation instead of inventing new fixes. "
             "Stay strictly within dishwasher troubleshooting. If the topic is outside scope, refuse with a short apology and invite dishwasher questions. "
-            "Follow-up guidance: default follow_up.type to 'none'. Use 'resolution_check' only when the user explicitly states the issue seems resolved. Use 'escalation' when escalation is recommended or the planner escalates. "
+            "Follow-up guidance: default follow_up.type to 'none'. Use 'resolution_check' only when the user explicitly states the issue seems resolved. Use 'escalation' when escalation is recommended, the planner escalates, or the user explicitly asks for human assistance. "
             "Never include code fences or policy discussion. Avoid repeating the same advice across consecutive messages. "
         )
 
@@ -142,6 +142,8 @@ class ResponseGenerationService:
         if classification.escalate:
             reason = classification.escalate_reason or "No reason provided"
             classification_lines.append(f"- Escalation requested: {reason}")
+        if classification.request_type:
+            classification_lines.append(f"- Request type: {classification.request_type}")
         summary_lines.append("\n".join(classification_lines))
 
         plan = request.suggestion_plan
