@@ -14,6 +14,7 @@ from app.data.DTO.troubleshooting_dto import (
     ProblemCauseView,
     ProblemClassificationRequest,
     ProblemClassificationResult,
+    ProblemRequestType,
 )
 from app.data.repositories import ProblemCategoryRepository, ProblemCauseRepository
 from app.data.repositories.session_problem_state_repository import SessionProblemStateRepository
@@ -187,6 +188,13 @@ class ProblemClassifierService:
             else None
         )
 
+        request_type = None
+        if payload.request_type:
+            try:
+                request_type = ProblemRequestType(payload.request_type)
+            except ValueError:
+                request_type = None
+
         return ProblemClassificationResult(
             category=category_view,
             cause=cause_view,
@@ -196,7 +204,7 @@ class ProblemClassifierService:
             escalate_reason=payload.escalate_reason,
             needs_more_info=payload.needs_more_info or bool(payload.next_questions),
             next_questions=self._select_follow_up_questions(payload.next_questions),
-            request_type=payload.request_type,
+            request_type=request_type,
         )
 
     async def _persist_session_state(self, session_id: UUID, result: ProblemClassificationResult) -> None:

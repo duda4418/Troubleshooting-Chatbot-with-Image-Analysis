@@ -20,12 +20,14 @@ from app.data.DTO import (
     SuggestionPlannerRequest,
 )
 from app.data.DTO.image_analysis_dto import ImageAnalysisRequest
+from app.data.DTO.troubleshooting_dto import ProblemRequestType
 from app.data.DTO.usage_dto import ModelUsageDetails
 from app.data.repositories import (
     ConversationMessageRepository,
     ConversationSessionRepository,
     ModelUsageRepository,
 )
+from app.data.DTO.troubleshooting_dto import ProblemRequestType
 from app.data.schemas.models import ConversationMessage, ConversationSession, MessageRole, ModelUsageLog
 from app.services.conversation_context_service import ConversationContextService
 from app.services.feedback_flow_service import FeedbackFlowService
@@ -147,8 +149,8 @@ class AssistantWorkflowService:
         )
 
         suggestion_plan: SuggestionPlan
-        request_type = (classification.request_type or "troubleshoot").lower()
-        if request_type == "resolution_check":
+        request_type = classification.request_type or ProblemRequestType.TROUBLESHOOT
+        if request_type is ProblemRequestType.RESOLUTION_CHECK:
             classification.escalate = False
             classification.escalate_reason = None
             classification.needs_more_info = False
@@ -158,7 +160,7 @@ class AssistantWorkflowService:
                 escalate=False,
                 notes="User reports the issue is resolved; confirm closure.",
             )
-        elif request_type == "escalation":
+        elif request_type is ProblemRequestType.ESCALATION:
             classification.escalate = True
             classification.escalate_reason = classification.escalate_reason or "User requested human assistance."
             classification.needs_more_info = False
@@ -168,7 +170,7 @@ class AssistantWorkflowService:
                 escalate=True,
                 notes=classification.escalate_reason,
             )
-        elif request_type == "clarification":
+        elif request_type is ProblemRequestType.CLARIFICATION:
             classification.needs_more_info = True
             classification.escalate = False
             classification.escalate_reason = None
@@ -294,7 +296,7 @@ class AssistantWorkflowService:
             escalate=classification.escalate,
             escalate_reason=classification.escalate_reason,
             needs_more_info=classification.needs_more_info,
-            request_type=classification.request_type,
+            request_type=classification.request_type.value if classification.request_type else None,
         )
         if classification.category:
             payload.category = {
@@ -406,20 +408,24 @@ class AssistantWorkflowService:
         metadata: Dict[str, Any] = dict(answer.metadata or {})
         existing_form = answer.follow_up_form
 
-        declared_type = answer.follow_up_type or metadata.get("follow_up_type")
+        declared_type_raw = answer.follow_up_type or metadata.get("follow_up_type")
+        normalized_type = (declared_type_raw or "").strip().lower()
+        declared_type = normalized_type if normalized_type and normalized_type != "none" else None
+        if normalized_type == "none":
+            answer.follow_up_type = None
         declared_reason = answer.follow_up_reason or metadata.get("follow_up_reason")
 
-        request_type_value = (classification.request_type or "").lower()
+        request_type_value = classification.request_type.value if classification.request_type else ""
 
         if not declared_type:
-            if request_type_value == "escalation" or plan.escalate or classification.escalate:
+            if request_type_value == ProblemRequestType.ESCALATION.value or plan.escalate or classification.escalate:
                 declared_type = "escalation"
                 declared_reason = (
                     classification.escalate_reason
                     or plan.notes
                     or "Escalation recommended by planner."
                 )
-            elif request_type_value == "resolution_check":
+            elif request_type_value == ProblemRequestType.RESOLUTION_CHECK.value:
                 declared_type = "resolution_check"
                 declared_reason = declared_reason or plan.notes or classification.rationale or "Confirm the issue is fully resolved."
             else:
@@ -474,10 +480,14 @@ class AssistantWorkflowService:
             answer.metadata = metadata
             return
 
-        # If the service requested "none", keep any existing metadata aligned.
-        metadata["follow_up_type"] = "none"
+        # If the service requested "none" or provided no follow-up, clear any stale values.
+        metadata.pop("follow_up_type", None)
+        if declared_type_raw and declared_type_raw.lower() not in {"", "none"}:
+            metadata["follow_up_type"] = declared_type_raw
         if declared_reason:
             metadata["follow_up_reason"] = declared_reason
+        else:
+            metadata.pop("follow_up_reason", None)
         answer.follow_up_type = None
         answer.follow_up_reason = declared_reason
         answer.metadata = metadata

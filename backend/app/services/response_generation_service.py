@@ -143,7 +143,7 @@ class ResponseGenerationService:
             reason = classification.escalate_reason or "No reason provided"
             classification_lines.append(f"- Escalation requested: {reason}")
         if classification.request_type:
-            classification_lines.append(f"- Request type: {classification.request_type}")
+            classification_lines.append(f"- Request type: {classification.request_type.value}")
         summary_lines.append("\n".join(classification_lines))
 
         plan = request.suggestion_plan

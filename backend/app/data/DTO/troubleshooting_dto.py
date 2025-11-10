@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from enum import Enum
 from typing import List, Optional
 from uuid import UUID
 
@@ -45,6 +46,12 @@ class ProblemClassificationRequest(BaseModel):
     user_text: str
     context: ConversationAIContext
 
+class ProblemRequestType(str, Enum):
+    TROUBLESHOOT = "troubleshoot"
+    RESOLUTION_CHECK = "resolution_check"
+    ESCALATION = "escalation"
+    CLARIFICATION = "clarification"
+
 
 class ProblemClassificationResult(BaseModel):
     category: Optional[ProblemCategoryView] = None
@@ -55,7 +62,7 @@ class ProblemClassificationResult(BaseModel):
     escalate_reason: Optional[str] = None
     needs_more_info: bool = False
     next_questions: List[str] = Field(default_factory=list)
-    request_type: Optional[str] = None
+    request_type: Optional[ProblemRequestType] = None
 
 
 class SuggestionPlannerRequest(BaseModel):
