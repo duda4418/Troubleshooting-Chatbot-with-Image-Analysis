@@ -15,6 +15,9 @@
 docker-compose up --build frontend backend
 ```
 
+## Populate troubleshooting catalog
+- Once the services are running, call `POST /troubleshooting/import` with `backend/app/data/troubleshooting_catalog.json` to load the dishwasher guidance into the database.
+
 ## Deploying to Azure Container Apps
 - Backend: provide `DATABASE_URL`, `SECRET_KEY`, `OPENAI_API_KEY`, and update `CORS_ORIGINS` with the public frontend URL.
 - Frontend: build with the backend host baked in so no code edits are needed later.
