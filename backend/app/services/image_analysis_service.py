@@ -150,20 +150,26 @@ class ImageAnalysisService:
             "If the images are unclear or do not contain dishwasher-related content, state this fact in the description and set confidence to 0.0." \
         )
 
-        return self._client.responses.parse(
-            model=self._vision_model,
-            instructions=instructions,
-            input=[
+        request_kwargs = {
+            "model": self._vision_model,
+            "instructions": instructions,
+            "input": [
                 {
                     "role": "user",
                     "content": content,
                 }
             ],
-            #reasoning={"effort": "minimal"},    
-            #text={"verbosity": "low"},
-            temperature=0.2,
-            text_format=ImageBatchPayload,
-        )
+            "text_format": ImageBatchPayload,
+        }
+
+        model_name = (self._vision_model or "").lower()
+        if "gpt-5" in model_name:
+            request_kwargs["reasoning"] = {"effort": "minimal"}
+            request_kwargs["text"] = {"verbosity": "low"}
+        else:
+            request_kwargs["temperature"] = 0.2
+
+        return self._client.responses.parse(**request_kwargs)
 
     def _parse_summary(self, response) -> ImageAnalysisSummary:
         payload = getattr(response, "output_parsed", None)

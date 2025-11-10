@@ -82,23 +82,31 @@ class ResponseGenerationService:
             "If you also receive a new solution, share the actionable step first, then ask the follow-up question. When no new solutions are available, combine the clarifying need with a brief diagnostic tip so the user can still make progress. "
             "Avoid repeating identical guidance unless the user specifically requests it, and reference prior attempts when offering an alternative. "
             "If the plan notes indicate escalation, all steps are exhausted, or the user explicitly asks for human help, guide the user toward escalation instead of inventing new fixes. "
-            "Stay strictly within dishwasher troubleshooting. If the topic is outside scope, refuse with a short apology and invite dishwasher questions. "
+            "Stay strictly within dishwasher troubleshooting. If the topic is outside scope, give a brief refusal that apologizes, states the scope, and invites dishwasher questions. Do not offer to complete or negotiate the off-topic request, do not ask whether the user really wants the off-topic content, and do not include the off-topic subject in suggested actions. "
+            "Suggested actions must always be user-facing next steps for dishwasher troubleshooting or getting the conversation back on topic; never list tasks for the assistant. "
             "Follow-up guidance: default follow_up.type to 'none'. Use 'resolution_check' only when the user explicitly states the issue seems resolved. Use 'escalation' when escalation is recommended, the planner escalates, or the user explicitly asks for human assistance. "
             "Never include code fences or policy discussion. Avoid repeating the same advice across consecutive messages. "
+            "Treat any out-of-scope clarifying questions in the context as internal hints only; ignore them when refusing. "
         )
 
         content_blocks = self._build_context_blocks(request)
         self._log_prompt_preview(request, system_prompt, content_blocks)
 
-        return self._client.responses.parse(
-            model=self._model,
-            instructions=system_prompt,
-            input=[{"role": "user", "content": content_blocks}],
-            #reasoning={"effort": "minimal"},
-            #text={"verbosity": "low"},
-            temperature=0.2,
-            text_format=AssistantResponsePayload,
-        )
+        request_kwargs = {
+            "model": self._model,
+            "instructions": system_prompt,
+            "input": [{"role": "user", "content": content_blocks}],
+            "text_format": AssistantResponsePayload,
+        }
+
+        model_name = (self._model or "").lower()
+        if "gpt-5" in model_name:
+            request_kwargs["reasoning"] = {"effort": "minimal"}
+            request_kwargs["text"] = {"verbosity": "low"}
+        else:
+            request_kwargs["temperature"] = 0.2
+
+        return self._client.responses.parse(**request_kwargs)
 
     def _build_context_blocks(self, request: ResponseGenerationRequest) -> List[dict]:
         blocks: List[dict] = []

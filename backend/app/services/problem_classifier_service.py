@@ -136,13 +136,21 @@ class ProblemClassifierService:
         ]
         self._log_prompt_preview(request, instructions, input_blocks)
 
-        return self._client.responses.parse(
-            model=self._model,
-            instructions=instructions,
-            input=[{"role": "user", "content": input_blocks}],
-            temperature=0.0,
-            text_format=ClassificationPayload,
-        )
+        request_kwargs = {
+            "model": self._model,
+            "instructions": instructions,
+            "input": [{"role": "user", "content": input_blocks}],
+            "text_format": ClassificationPayload,
+        }
+
+        model_name = (self._model or "").lower()
+        if "gpt-5" in model_name:
+            request_kwargs["reasoning"] = {"effort": "minimal"}
+            request_kwargs["text"] = {"verbosity": "low"}
+        else:
+            request_kwargs["temperature"] = 0.0
+
+        return self._client.responses.parse(**request_kwargs)
 
     def _parse_response(self, response) -> ClassificationPayload:
         payload = getattr(response, "output_parsed", None)
