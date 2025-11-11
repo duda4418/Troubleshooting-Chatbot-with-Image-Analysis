@@ -428,6 +428,11 @@ class AssistantWorkflowService:
             elif request_type_value == ProblemRequestType.RESOLUTION_CHECK.value:
                 declared_type = "resolution_check"
                 declared_reason = declared_reason or plan.notes or classification.rationale or "Confirm the issue is fully resolved."
+            elif plan.solutions and not classification.needs_more_info and not classification.next_questions:
+                # Only attach feedback form when we're actually suggesting a solution to try
+                # NOT when asking clarifying questions
+                declared_type = "feedback"
+                declared_reason = "Quick check-in after solution"
             else:
                 return
 
@@ -474,6 +479,23 @@ class AssistantWorkflowService:
                 {
                     "form_kind": "resolution_check",
                     "follow_up_type": "resolution_check",
+                    "follow_up_reason": reason,
+                }
+            )
+            answer.metadata = metadata
+            return
+
+        if declared_type == "feedback":
+            if not existing_form or metadata.get("form_kind") != "feedback":
+                answer.follow_up_form = self._feedback_flow.build_feedback_form()
+
+            reason = declared_reason or "Quick check-in"
+            answer.follow_up_type = "feedback"
+            answer.follow_up_reason = reason
+            metadata.update(
+                {
+                    "form_kind": "feedback",
+                    "follow_up_type": "feedback",
                     "follow_up_reason": reason,
                 }
             )

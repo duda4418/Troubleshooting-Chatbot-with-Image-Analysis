@@ -74,7 +74,13 @@ class SuggestionPlannerService:
         if classification.needs_more_info and not plan.solutions:
             plan.notes = classification.rationale or "Classifier requires more details before proposing steps."
         elif not plan.solutions and existing_by_solution:
-            plan.notes = "All catalog steps for this cause have already been suggested."
+            # No new solutions for this specific cause, but don't escalate yet
+            # The system will try a different cause in the same category on the next turn
+            plan.notes = "Previous suggestions didn't resolve the issue. Let me try a different approach."
+            plan.escalate = False
+        elif not plan.solutions and not existing_by_solution:
+            # No solutions exist for this cause at all
+            plan.notes = "No solutions available in the catalog for this specific cause."
             plan.escalate = True
 
         return plan

@@ -117,16 +117,34 @@ class ProblemClassifierService:
 
     def _invoke_openai(self, request: ProblemClassificationRequest, catalog: List[_CatalogEntry]):
         instructions = (
-            "You are a meticulous dishwasher troubleshooting classifier. "
-            "Map the user's report to the most relevant category from the catalog. "
-            "Treat cause selection as a separate confirmation step: unless the transcript contains clear, explicit evidence that a specific cause has already been verified, leave cause_slug null. "
-            "If you are at least moderately confident (confidence >= 0.6) in one cause, you may return that cause_slug while still asking for confirmation. "
-            "Generate at most two clarifying questions, only when genuinely needed, and avoid repeating questions that already appear in the conversation context. "
-            "Populate next_questions with targeted follow-ups that help disambiguate causes or confirm symptoms. "
-            "Only recommend escalation if the evidence suggests a hardware failure, the catalog offers no viable path, or the user explicitly asks for a human technician. "
-            "Set needs_more_info true when clarification is required before planning. "
-            "Also populate request_type with one of: troubleshoot (default when actively diagnosing), resolution_check (when the user indicates the problem appears solved or is just confirming success), escalation (when the user explicitly wants human help or escalation is clearly required), or clarification (when the latest user input is ambiguous, unrelated, or lacks enough detail to classify). "
-            "If the user input is pure noise, empty, or contradictory to clean imagery, choose request_type=clarification and leave category_slug null unless strong evidence suggests otherwise.")
+            "You are a practical dishwasher troubleshooting classifier. "
+            "Map the user's problem to a category and cause from the catalog. "
+            "\n"
+            "Input validation - CHECK FIRST:\n"
+            "- If user input is gibberish, random words, or unrelated to dishwashers → request_type='clarification', ask for proper problem description\n"
+            "- If user text contradicts image analysis (e.g., says 'dirty' but image shows clean dishes) → request_type='clarification', ask user to clarify the mismatch\n"
+            "- If user input is too vague/ambiguous to determine ANY category → request_type='clarification'\n"
+            "- For clarification cases: leave category_slug and cause_slug null, provide ONE helpful question\n"
+            "\n"
+            "Cause selection strategy (ONLY after input is valid):\n"
+            "- If symptoms match a cause (even partially), SELECT that cause_slug and set confidence based on certainty\n"
+            "- PREFER selecting the most likely cause over asking questions\n"
+            "- Only leave cause_slug null if truly unable to determine any likely cause\n"
+            "- The system will try one solution at a time - if it doesn't work, we'll try another cause\n"
+            "\n"
+            "Clarifying questions:\n"
+            "- AVOID asking questions unless absolutely necessary\n"
+            "- Only ask when you literally cannot determine ANY likely cause\n"
+            "- Maximum 1 question, not 2\n"
+            "- Never ask questions already answered in conversation context\n"
+            "\n"
+            "Request types:\n"
+            "- troubleshoot: actively diagnosing (default for clear problems)\n"
+            "- resolution_check: user indicates problem seems resolved\n"
+            "- escalation: user explicitly wants human help\n"
+            "- clarification: input is gibberish/contradictory/too vague/unrelated\n"
+            "\n"
+            "Escalation: Only for hardware failures, no viable catalog path, or explicit user request.")
 
         catalog_block = self._build_catalog_block(catalog)
         context_block = self._build_context_block(request)
