@@ -121,23 +121,38 @@ class AssistantWorkflowService:
         context = await self._context_service.get_ai_context(session_id)
 
         decision = self._feedback_flow.handle_form_submission(form_result)
-        if decision.handled and decision.answer:
-            assistant_message = await self._persist_assistant_message(
-                session_id=session_id,
-                answer=decision.answer,
-            )
-            if decision.completed_status:
-                await self._session_repository.set_status(session_id, decision.completed_status)
+        if decision.handled:
+            # Form was handled (escalation confirmed, resolution confirmed, or dismissed)
+            if decision.answer:
+                # We have a response to send
+                assistant_message = await self._persist_assistant_message(
+                    session_id=session_id,
+                    answer=decision.answer,
+                )
+                if decision.completed_status:
+                    await self._session_repository.set_status(session_id, decision.completed_status)
+                else:
+                    await self._session_repository.touch(session_id)
+                return AssistantMessageResponse(
+                    session_id=session_id,
+                    user_message_id=user_message.id,
+                    assistant_message_id=assistant_message.id,
+                    answer=decision.answer,
+                    knowledge_hits=[],
+                    form_id=None,
+                )
             else:
+                # Form dismissed - no response needed, just update session
                 await self._session_repository.touch(session_id)
-            return AssistantMessageResponse(
-                session_id=session_id,
-                user_message_id=user_message.id,
-                assistant_message_id=assistant_message.id,
-                answer=decision.answer,
-                knowledge_hits=[],
-                form_id=None,
-            )
+                # Return response with empty answer (frontend should handle gracefully)
+                return AssistantMessageResponse(
+                    session_id=session_id,
+                    user_message_id=user_message.id,
+                    assistant_message_id=None,  # No assistant message created
+                    answer=AssistantAnswer(reply="", suggested_actions=[], metadata={"dismissed": True}),
+                    knowledge_hits=[],
+                    form_id=None,
+                )
 
         classification = await self._safe_classify(
             ProblemClassificationRequest(

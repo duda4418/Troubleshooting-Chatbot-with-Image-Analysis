@@ -19,7 +19,7 @@ class AssistantMessageResponse(BaseModel):
 
     session_id: UUID
     user_message_id: UUID
-    assistant_message_id: UUID
+    assistant_message_id: Optional[UUID] = None  # None when form dismissed without creating message
     answer: AssistantAnswer
     knowledge_hits: List[KnowledgeHit] = Field(default_factory=list)
     form_id: Optional[UUID] = None

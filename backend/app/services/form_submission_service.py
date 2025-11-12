@@ -62,14 +62,15 @@ class FormSubmissionService:
         resolution_confirmed: Optional[bool] = None
 
         if status == "dismissed":
-            skip_response = True
+            skip_response = True  # Always skip response for any dismissed form
             if form_kind == "escalation":
-                summary = "Escalation prompt dismissed; continue troubleshooting without involving a technician yet."
-                skip_response = False
+                summary = "User dismissed escalation form"
             elif form_kind == "feedback":
-                summary = "Feedback form dismissed; avoid repeating the last suggestion."
+                summary = "User dismissed feedback form"
+            elif form_kind == "resolution_check":
+                summary = "User dismissed resolution check"
             else:
-                summary = "Follow-up form dismissed."
+                summary = "Follow-up form dismissed"
             self._maybe_attach_summary(metadata_updates, summary)
             return FormProcessingResult(
                 summary=summary,

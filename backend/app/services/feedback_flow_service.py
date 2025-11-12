@@ -20,6 +20,14 @@ class FeedbackFlowService:
     def handle_form_submission(self, result: FormProcessingResult) -> FollowUpHandlingDecision:
         kind = (result.form_kind or "").lower()
 
+        # Handle form dismissals - return empty handled response (no AI message)
+        if result.skip_response:
+            return FollowUpHandlingDecision(
+                handled=True,
+                answer=None,  # No message shown to user
+                completed_status=None,
+            )
+
         if kind == "escalation" and result.escalation_confirmed:
             return FollowUpHandlingDecision(
                 handled=True,
