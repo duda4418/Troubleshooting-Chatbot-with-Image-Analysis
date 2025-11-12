@@ -122,7 +122,11 @@ class ImageAnalysisService:
                 hint = request.image_mime_types[idx]
             mime = resolve_image_mime(hint, image_b64, logger=logger)
             data_url = to_data_url(image_b64, mime)
-            content.append({"type": "input_image", "image_url": data_url})
+            content.append({
+                "type": "input_image",
+                "image_url": data_url,
+                "detail": "low"  # Use low detail mode to reduce token usage
+            })
 
         locale_line = f"Locale: {request.locale}." if request.locale else ""
         image_count = len(request.images_b64)

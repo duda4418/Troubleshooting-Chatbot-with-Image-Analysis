@@ -5,7 +5,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 
-from app.core.dependencies import get_assistant_service
+from app.core.dependencies import get_assistant_service, get_session_manager_service
 from app.data.DTO import (
     AssistantMessageRequest,
     AssistantMessageResponse,
@@ -13,7 +13,7 @@ from app.data.DTO import (
     ConversationSessionRead,
     SessionFeedbackRequest,
 )
-from app.services.assistant_workflow_service import AssistantWorkflowService
+from app.services_v2 import UnifiedWorkflowService, SessionManagerService
 
 router = APIRouter(prefix="/assistant", tags=["assistant"])
 
@@ -21,7 +21,7 @@ router = APIRouter(prefix="/assistant", tags=["assistant"])
 @router.post("/messages", response_model=AssistantMessageResponse)
 async def send_message(
     payload: AssistantMessageRequest,
-    assistant_service: AssistantWorkflowService = Depends(get_assistant_service),
+    assistant_service: UnifiedWorkflowService = Depends(get_assistant_service),
 ) -> AssistantMessageResponse:
     try:
         return await assistant_service.handle_message(payload)
@@ -32,9 +32,9 @@ async def send_message(
 @router.get("/sessions", response_model=List[ConversationSessionRead])
 async def list_sessions(
     limit: int = Query(50, ge=1, le=100, description="Maximum number of sessions to return"),
-    assistant_service: AssistantWorkflowService = Depends(get_assistant_service),
+    session_manager: SessionManagerService = Depends(get_session_manager_service),
 ) -> List[ConversationSessionRead]:
-    return await assistant_service.list_sessions(limit=limit)
+    return await session_manager.list_sessions(limit=limit)
 
 
 @router.get(
@@ -44,10 +44,10 @@ async def list_sessions(
 async def get_history(
     session_id: UUID,
     limit: int = Query(100, ge=1, le=200, description="Maximum number of messages to return"),
-    assistant_service: AssistantWorkflowService = Depends(get_assistant_service),
+    session_manager: SessionManagerService = Depends(get_session_manager_service),
 ) -> ConversationHistoryResponse:
     try:
-        session, messages = await assistant_service.get_session_history(session_id, limit)
+        session, messages = await session_manager.get_session_history(session_id, limit)
     except ValueError as exc:  # noqa: BLE001
         raise HTTPException(status_code=404, detail="Session not found") from exc
 
@@ -61,10 +61,10 @@ async def get_history(
 async def submit_feedback(
     session_id: UUID,
     payload: SessionFeedbackRequest,
-    assistant_service: AssistantWorkflowService = Depends(get_assistant_service),
+    session_manager: SessionManagerService = Depends(get_session_manager_service),
 ) -> Response:
     try:
-        await assistant_service.submit_feedback(session_id, rating=payload.rating, comment=payload.comment)
+        await session_manager.submit_feedback(session_id, rating=payload.rating, comment=payload.comment)
     except ValueError as exc:  # noqa: BLE001
         raise HTTPException(status_code=404, detail="Session not found") from exc
     except PermissionError as exc:

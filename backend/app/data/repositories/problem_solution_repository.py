@@ -33,3 +33,10 @@ class ProblemSolutionRepository(BaseRepository[ProblemSolution]):
             statement = select(ProblemSolution).where(ProblemSolution.id.in_(ids))  # type: ignore[arg-type]
             result = await session.execute(statement)
             return list(result.scalars().all())
+    
+    async def get_by_slug(self, slug: str) -> ProblemSolution | None:
+        """Get a solution by its slug."""
+        async with self.db_provider.get_session() as session:
+            statement = select(ProblemSolution).where(ProblemSolution.slug == slug)
+            result = await session.execute(statement)
+            return result.scalar_one_or_none()

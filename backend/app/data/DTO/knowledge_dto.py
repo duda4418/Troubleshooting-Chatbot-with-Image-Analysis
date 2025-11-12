@@ -1,18 +1,14 @@
+"""Knowledge and tool result DTOs."""
 from __future__ import annotations
 
-from typing import Any, Dict, List
+from typing import Any, Dict
 
 from pydantic import BaseModel, Field
 
 
-class KnowledgeHit(BaseModel):
-    label: str
-    similarity: float
-    summary: str
-    steps: List[str] = Field(default_factory=list)
-
-
 class AssistantToolResult(BaseModel):
-    tool_name: str
+    """The result of executing an assistant tool."""
+
     success: bool
-    details: Dict[str, Any] = Field(default_factory=dict)
+    data: Dict[str, Any] = Field(default_factory=dict)
+    error: str | None = None

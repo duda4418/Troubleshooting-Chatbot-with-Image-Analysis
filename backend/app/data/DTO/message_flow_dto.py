@@ -6,7 +6,6 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 
 from app.data.DTO.conversation_context_dto import ConversationAIContext
-from app.data.DTO.troubleshooting_dto import ProblemClassificationResult, SuggestionPlan
 
 
 class UserMessageRequest(BaseModel):
@@ -35,15 +34,6 @@ class GeneratedForm(BaseModel):
     title: str
     description: Optional[str] = None
     fields: List[GeneratedFormField] = Field(default_factory=list)
-
-
-class ResponseGenerationRequest(BaseModel):
-    session_id: UUID
-    locale: str
-    user_text: str
-    context: ConversationAIContext
-    classification: ProblemClassificationResult
-    suggestion_plan: SuggestionPlan
 
 
 class AssistantAnswer(BaseModel):

@@ -37,26 +37,13 @@ from .form_submission_dto import (
 )
 from .knowledge_dto import (
     AssistantToolResult,
-    KnowledgeHit,
 )
 from .message_flow_dto import (
     AssistantAnswer,
     GeneratedForm,
     GeneratedFormField,
     GeneratedFormOption,
-    ResponseGenerationRequest,
     UserMessageRequest,
-)
-from .troubleshooting_dto import (
-    PlannedSolution,
-    ProblemCategoryView,
-    ProblemCauseView,
-    ProblemClassificationRequest,
-    ProblemClassificationResult,
-    ProblemRequestType,
-    ProblemSolutionView,
-    SuggestionPlan,
-    SuggestionPlannerRequest,
 )
 from .troubleshooting_import_dto import (
     TroubleshootingCatalog,
@@ -89,22 +76,11 @@ __all__ = [
     "FormSubmissionField",
     "FormSubmissionPayload",
     "AssistantToolResult",
-    "KnowledgeHit",
     "AssistantAnswer",
     "GeneratedForm",
     "GeneratedFormField",
     "GeneratedFormOption",
-    "ResponseGenerationRequest",
     "UserMessageRequest",
-    "ProblemCategoryView",
-    "ProblemCauseView",
-    "ProblemSolutionView",
-    "ProblemClassificationRequest",
-    "ProblemClassificationResult",
-    "ProblemRequestType",
-    "PlannedSolution",
-    "SuggestionPlannerRequest",
-    "SuggestionPlan",
     "TroubleshootingCatalog",
     "TroubleshootingImportAction",
     "TroubleshootingImportCause",

@@ -14,16 +14,17 @@ from app.data.repositories import (
     SessionSuggestionRepository,
 )
 from app.services import (
-    AssistantWorkflowService,
     ConversationContextService,
-    FeedbackFlowService,
     ImageAnalysisService,
-    FormSubmissionService,
     MetricsService,
-    ProblemClassifierService,
-    ResponseGenerationService,
-    SuggestionPlannerService,
     TroubleshootingImportService,
+)
+from app.services_v2 import (
+    UnifiedClassifierService,
+    UnifiedResponseService,
+    UnifiedWorkflowService,
+    FormBuilderService,
+    SessionManagerService,
 )
 from app.tools import MachineConfigTool
 
@@ -98,55 +99,52 @@ def get_image_analysis_service() -> ImageAnalysisService:
 
 
 @lru_cache()
-def get_response_generation_service() -> ResponseGenerationService:
-    return ResponseGenerationService(
-        api_key=settings.OPENAI_API_KEY,
-        response_model=settings.OPENAI_RESPONSE_MODEL,
-    )
-
-
-@lru_cache()
-def get_problem_classifier_service() -> ProblemClassifierService:
-    return ProblemClassifierService(
+def get_unified_classifier_service() -> UnifiedClassifierService:
+    return UnifiedClassifierService(
         category_repository=get_problem_category_repository(),
         cause_repository=get_problem_cause_repository(),
-        session_state_repository=get_session_problem_state_repository(),
-        api_key=settings.OPENAI_API_KEY,
-        response_model=settings.OPENAI_RESPONSE_MODEL,
-    )
-
-
-@lru_cache()
-def get_suggestion_planner_service() -> SuggestionPlannerService:
-    return SuggestionPlannerService(
         solution_repository=get_problem_solution_repository(),
-        session_suggestion_repository=get_session_suggestion_repository(),
+        suggestion_repository=get_session_suggestion_repository(),
+        problem_state_repository=get_session_problem_state_repository(),
+        api_key=settings.OPENAI_API_KEY,
+        model=settings.OPENAI_RESPONSE_MODEL,
     )
 
 
 @lru_cache()
-def get_form_submission_service() -> FormSubmissionService:
-    return FormSubmissionService(get_conversation_message_repository())
+def get_unified_response_service() -> UnifiedResponseService:
+    return UnifiedResponseService(
+        api_key=settings.OPENAI_API_KEY,
+        model=settings.OPENAI_RESPONSE_MODEL,
+    )
 
 
 @lru_cache()
-def get_feedback_flow_service() -> FeedbackFlowService:
-    return FeedbackFlowService()
+def get_form_builder_service() -> FormBuilderService:
+    return FormBuilderService()
 
 
 @lru_cache()
-def get_assistant_service() -> AssistantWorkflowService:
-    return AssistantWorkflowService(
-        session_repository=get_conversation_session_repository(),
-        message_repository=get_conversation_message_repository(),
-        image_analysis_service=get_image_analysis_service(),
+def get_session_manager_service() -> SessionManagerService:
+    return SessionManagerService(
+        session_repo=get_conversation_session_repository(),
+        message_repo=get_conversation_message_repository(),
+    )
+
+
+@lru_cache()
+def get_assistant_service() -> UnifiedWorkflowService:
+    return UnifiedWorkflowService(
+        classifier=get_unified_classifier_service(),
+        response_generator=get_unified_response_service(),
+        form_builder=get_form_builder_service(),
         context_service=get_conversation_context_service(),
-        classifier_service=get_problem_classifier_service(),
-        planner_service=get_suggestion_planner_service(),
-        response_service=get_response_generation_service(),
-        usage_repository=get_model_usage_repository(),
-        form_submission_service=get_form_submission_service(),
-        feedback_flow_service=get_feedback_flow_service(),
+        image_analysis=get_image_analysis_service(),
+        session_repo=get_conversation_session_repository(),
+        message_repo=get_conversation_message_repository(),
+        suggestion_repo=get_session_suggestion_repository(),
+        solution_repo=get_problem_solution_repository(),
+        usage_repo=get_model_usage_repository(),
     )
 
 

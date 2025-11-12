@@ -6,7 +6,6 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
-from app.data.DTO.knowledge_dto import KnowledgeHit
 from app.data.DTO.message_flow_dto import AssistantAnswer, UserMessageRequest
 
 
@@ -21,7 +20,6 @@ class AssistantMessageResponse(BaseModel):
     user_message_id: UUID
     assistant_message_id: Optional[UUID] = None  # None when form dismissed without creating message
     answer: AssistantAnswer
-    knowledge_hits: List[KnowledgeHit] = Field(default_factory=list)
     form_id: Optional[UUID] = None
 
 

@@ -4,7 +4,6 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.data.DTO.knowledge_dto import KnowledgeHit
 from app.data.DTO.message_flow_dto import AssistantAnswer, GeneratedForm
 
 
@@ -16,7 +15,6 @@ class AssistantMessageMetadata(BaseModel):
     suggested_actions: List[str] = Field(default_factory=list)
     follow_up_form: Optional[GeneratedForm] = None
     confidence: Optional[float] = None
-    knowledge_hits: List[KnowledgeHit] = Field(default_factory=list)
     client_hidden: Optional[bool] = None
     follow_up_type: Optional[str] = None
     follow_up_reason: Optional[str] = None
@@ -30,14 +28,11 @@ class AssistantMessageMetadata(BaseModel):
     def from_answer(
         cls,
         answer: AssistantAnswer,
-        *,
-        knowledge_hits: List[KnowledgeHit],
     ) -> "AssistantMessageMetadata":
         instance = cls(
             suggested_actions=list(answer.suggested_actions or []),
             follow_up_form=answer.follow_up_form,
             confidence=answer.confidence,
-            knowledge_hits=knowledge_hits,
             follow_up_type=_clean_str(answer.follow_up_type),
             follow_up_reason=_clean_str(answer.follow_up_reason),
         )
