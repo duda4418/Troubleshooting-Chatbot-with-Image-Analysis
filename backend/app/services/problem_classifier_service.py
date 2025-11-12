@@ -19,6 +19,7 @@ from app.data.DTO.troubleshooting_dto import (
 from app.data.repositories import ProblemCategoryRepository, ProblemCauseRepository
 from app.data.repositories.session_problem_state_repository import SessionProblemStateRepository
 from app.data.schemas.models import ProblemCategory, ProblemCause
+from app.services.utils.usage_metrics import extract_usage_details
 
 logger = logging.getLogger(__name__)
 
@@ -104,6 +105,15 @@ class ProblemClassifierService:
         )
         payload = self._parse_response(response)
         result = self._map_result(payload, catalog)
+        
+        # Extract usage details for tracking
+        usage_details = extract_usage_details(
+            response,
+            default_model=self._model,
+            request_type="classification",
+        )
+        result.usage = usage_details
+        
         await self._persist_session_state(request.session_id, result)
         return result
 

@@ -7,6 +7,7 @@ from uuid import UUID
 from pydantic import BaseModel, Field  # type: ignore[import-untyped]
 
 from app.data.DTO.conversation_context_dto import ConversationAIContext
+from app.data.DTO.usage_dto import ModelUsageDetails
 
 
 class ProblemCategoryView(BaseModel):
@@ -63,6 +64,7 @@ class ProblemClassificationResult(BaseModel):
     needs_more_info: bool = False
     next_questions: List[str] = Field(default_factory=list)
     request_type: Optional[ProblemRequestType] = None
+    usage: Optional[ModelUsageDetails] = None
 
 
 class SuggestionPlannerRequest(BaseModel):

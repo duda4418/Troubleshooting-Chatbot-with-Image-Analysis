@@ -163,6 +163,14 @@ class AssistantWorkflowService:
             )
         )
 
+        # Log classifier usage to database
+        if classification.usage:
+            await self._record_usage(
+                session_id=session_id,
+                message_id=user_message.id,
+                usage=classification.usage,
+            )
+
         suggestion_plan: SuggestionPlan
         request_type = classification.request_type or ProblemRequestType.TROUBLESHOOT
         if request_type is ProblemRequestType.RESOLUTION_CHECK:
