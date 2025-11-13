@@ -90,27 +90,42 @@ class ConversationContextService:
 
         events: List[str] = []
 
-        summary = metadata.get("follow_up_form_summary")
-        if not summary:
-            extra = metadata.get("extra")
-            if isinstance(extra, dict):
-                summary = extra.get("form_summary")
-        if isinstance(summary, str):
-            summary_clean = summary.strip()
-            if summary_clean:
-                events.append(f"Form submission: {summary_clean}")
-
+        # Check for form submission/response
         submission = metadata.get("follow_up_form_submission") or metadata.get("follow_up_form_response")
         if isinstance(submission, dict):
             status = submission.get("status")
-            choice = submission.get("choice") or submission.get("value") or submission.get("answer")
-            detail_parts: List[str] = []
-            if isinstance(status, str) and status.strip():
-                detail_parts.append(status.strip())
-            if isinstance(choice, str) and choice.strip():
-                detail_parts.append(choice.strip())
-            if detail_parts and not summary:
-                events.append("Form submission: " + " - ".join(detail_parts))
+            
+            # Skip dismissed forms
+            if status == "dismissed":
+                return events
+            
+            # Extract what was selected from fields
+            fields = submission.get("fields", [])
+            if isinstance(fields, list) and len(fields) > 0:
+                for field in fields:
+                    if isinstance(field, dict):
+                        # Frontend sends 'id', backend expects 'field_id' - check both
+                        field_id = field.get("field_id") or field.get("id", "")
+                        value = field.get("value")
+                        label = field.get("label", "")
+                        
+                        # Create human-readable event based on field_id or label
+                        if field_id == "is_resolved" or "problem resolved" in label.lower():
+                            if value == "yes":
+                                events.append("User confirmed: Problem is RESOLVED")
+                            elif value == "no":
+                                events.append("User confirmed: Problem NOT resolved, needs more help")
+                        elif field_id == "escalate_confirmed" or "escalate to human" in label.lower():
+                            if value == "yes":
+                                events.append("User confirmed: ESCALATE to human support")
+                            elif value == "no":
+                                events.append("User confirmed: Continue troubleshooting, no escalation")
+                        elif value:  # Generic fallback
+                            # Try to make it readable
+                            if label:
+                                events.append(f"User selected: {value} for '{label}'")
+                            else:
+                                events.append(f"Form submitted: {value}")
 
         return events
 

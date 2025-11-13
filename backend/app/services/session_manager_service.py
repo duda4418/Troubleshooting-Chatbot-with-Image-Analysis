@@ -86,12 +86,14 @@ class SessionManagerService:
         if not session:
             raise ValueError(f"Session {session_id} not found")
         
+        # Allow feedback for resolved or escalated sessions, but not closed ones
         if session.status == "closed":
             raise PermissionError("Cannot submit feedback for a closed session")
         
+        # Update feedback fields without changing the session status
         session.feedback_rating = rating
-        session.feedback_comment = comment
-        session.status = "closed"
+        session.feedback_text = comment
+        # Don't change status - keep it as "resolved" or "escalated"
         
         await self._session_repo.update(session)
-        logger.info(f"Feedback submitted for session {session_id}: rating={rating}")
+        logger.info(f"Feedback submitted for session {session_id}: rating={rating}, status remains={session.status}")
