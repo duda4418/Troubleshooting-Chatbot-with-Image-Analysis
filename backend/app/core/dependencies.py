@@ -18,15 +18,12 @@ from app.services import (
     ImageAnalysisService,
     MetricsService,
     TroubleshootingImportService,
-)
-from app.services_v2 import (
     UnifiedClassifierService,
     UnifiedResponseService,
     UnifiedWorkflowService,
     FormBuilderService,
     SessionManagerService,
 )
-from app.tools import MachineConfigTool
 
 
 @lru_cache()
@@ -78,9 +75,6 @@ def get_session_problem_state_repository() -> SessionProblemStateRepository:
 def get_session_suggestion_repository() -> SessionSuggestionRepository:
     return SessionSuggestionRepository(get_database_provider())
 
-@lru_cache()
-def get_machine_config_tool() -> MachineConfigTool:
-    return MachineConfigTool()
 
 @lru_cache()
 def get_conversation_context_service() -> ConversationContextService:

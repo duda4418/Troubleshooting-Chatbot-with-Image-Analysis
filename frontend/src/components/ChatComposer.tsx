@@ -133,6 +133,21 @@ const ChatComposer = ({ disabled = false, placeholder, onSend }: ChatComposerPro
     setFileError(null);
   };
 
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // Enter without Shift sends the message
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      if (canSend && !disabled && !isSubmitting) {
+        // Trigger form submission
+        const form = event.currentTarget.form;
+        if (form) {
+          form.requestSubmit();
+        }
+      }
+    }
+    // Shift+Enter allows new line (default behavior)
+  };
+
   return (
     <form
       onSubmit={handleSubmit}
@@ -190,6 +205,7 @@ const ChatComposer = ({ disabled = false, placeholder, onSend }: ChatComposerPro
           value={value}
           onChange={(event: ChangeEvent<HTMLTextAreaElement>) => setValue(event.target.value)}
           onInput={resizeTextarea}
+          onKeyDown={handleKeyDown}
           placeholder={placeholder ?? "Describe the issue you need help with..."}
           rows={1}
           className="scrollbar-muted max-h-60 min-h-[44px] w-full resize-none overflow-y-auto rounded-xl border border-transparent bg-black/10 px-4 py-2 text-sm leading-relaxed text-white outline-none placeholder:text-brand-secondary/50 focus:border-brand-accent/50 focus:bg-black/15"

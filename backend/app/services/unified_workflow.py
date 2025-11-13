@@ -28,9 +28,9 @@ from app.data.schemas.models import ConversationMessage, ConversationSession, Me
 from app.services.conversation_context_service import ConversationContextService
 from app.services.image_analysis_service import ImageAnalysisService
 from app.services.utils.image_payload import resolve_image_mime
-from app.services_v2.unified_classifier import UnifiedClassifierService
-from app.services_v2.unified_response import UnifiedResponseService
-from app.services_v2.form_builder_service import FormBuilderService
+from app.services.unified_classifier import UnifiedClassifierService
+from app.services.unified_response import UnifiedResponseService
+from app.services.form_builder_service import FormBuilderService
 
 logger = logging.getLogger(__name__)
 

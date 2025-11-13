@@ -32,7 +32,7 @@ const MessageBubble = ({ role, children, header, footer, status }: MessageBubble
       {header ? <div className="px-1 text-xs uppercase tracking-wide text-brand-secondary/60">{header}</div> : null}
       <div
         className={clsx(
-          "max-w-2xl rounded-3xl px-5 py-4 text-sm shadow-lg shadow-black/20",
+          "max-w-xl rounded-3xl px-5 py-4 text-sm shadow-lg shadow-black/20",
           role === "user" ? "rounded-br-md" : "rounded-bl-md",
           bubbleTone,
           stateTone

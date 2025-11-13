@@ -92,6 +92,11 @@ const ChatMessageCard = ({ message, isBusy = false, onSubmitForm, onDismissForm 
         : undefined;
 
   const alignment = message.role === "user" ? "justify-end" : "justify-start";
+  
+  // Check if this is an image-only message (no text content)
+  const hasText = message.content && message.content.trim().length > 0;
+  const hasImages = attachments && attachments.length > 0;
+  const isImageOnly = hasImages && !hasText && message.role === "user";
 
   const header = (
     <div className="flex items-center gap-2 text-xs uppercase tracking-wide">
@@ -102,32 +107,47 @@ const ChatMessageCard = ({ message, isBusy = false, onSubmitForm, onDismissForm 
 
   return (
     <div className={clsx("flex", alignment)}>
-      <MessageBubble role={message.role} header={header} status={message.status} footer={footerText}>
-        {isAssistantPending ? <TypingIndicator /> : <MessageMarkdown content={message.content} />}
+      {/* Image-only messages: display images outside bubble */}
+      {isImageOnly ? (
+        <div className={clsx("flex flex-col gap-2", message.role === "user" ? "items-end" : "items-start")}>
+          {header}
+          <div className="max-w-sm">
+            <MessageAttachmentGrid attachments={attachments} standalone />
+          </div>
+          {footerText ? (
+            <div className="px-1 text-[10px] uppercase tracking-wide text-brand-secondary/40">{footerText}</div>
+          ) : null}
+        </div>
+      ) : (
+        /* Regular messages with text bubble */
+        <MessageBubble role={message.role} header={header} status={message.status} footer={footerText}>
+          {isAssistantPending ? <TypingIndicator /> : hasText ? <MessageMarkdown content={message.content} /> : null}
 
-        {attachments ? <MessageAttachmentGrid attachments={attachments} /> : null}
+          {/* Only show attachments inside bubble if there's also text */}
+          {attachments && hasText ? <MessageAttachmentGrid attachments={attachments} /> : null}
 
-        {message.metadata?.suggested_actions?.length ? (
-          <MessageActionList suggestedActions={message.metadata.suggested_actions} />
-        ) : null}
+          {message.metadata?.suggested_actions?.length ? (
+            <MessageActionList suggestedActions={message.metadata.suggested_actions} />
+          ) : null}
 
-        {message.metadata?.tool_results?.length ? (
-          <MessageToolResults results={message.metadata.tool_results} />
-        ) : null}
+          {message.metadata?.tool_results?.length ? (
+            <MessageToolResults results={message.metadata.tool_results} />
+          ) : null}
 
-        {confidenceLabel ? (
-          <div className="mt-3 text-xs font-medium uppercase tracking-wide text-white/50">{confidenceLabel}</div>
-        ) : null}
+          {confidenceLabel ? (
+            <div className="mt-3 text-xs font-medium uppercase tracking-wide text-white/50">{confidenceLabel}</div>
+          ) : null}
 
-        {shouldRenderFollowUp ? (
-          <FollowUpForm
-            form={followUpForm}
-            disabled={isBusy || isAssistantPending}
-            onSubmit={(submission) => onSubmitForm(message, followUpForm, submission)}
-            onDismiss={onDismissForm ? () => onDismissForm(message, followUpForm) : undefined}
-          />
-        ) : null}
-      </MessageBubble>
+          {shouldRenderFollowUp ? (
+            <FollowUpForm
+              form={followUpForm}
+              disabled={isBusy || isAssistantPending}
+              onSubmit={(submission) => onSubmitForm(message, followUpForm, submission)}
+              onDismiss={onDismissForm ? () => onDismissForm(message, followUpForm) : undefined}
+            />
+          ) : null}
+        </MessageBubble>
+      )}
     </div>
   );
 };

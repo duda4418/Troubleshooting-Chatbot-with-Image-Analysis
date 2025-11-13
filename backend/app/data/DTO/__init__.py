@@ -35,9 +35,6 @@ from .form_submission_dto import (
     FormSubmissionField,
     FormSubmissionPayload,
 )
-from .knowledge_dto import (
-    AssistantToolResult,
-)
 from .message_flow_dto import (
     AssistantAnswer,
     GeneratedForm,
@@ -75,7 +72,6 @@ __all__ = [
     "ImageObservationSummary",
     "FormSubmissionField",
     "FormSubmissionPayload",
-    "AssistantToolResult",
     "AssistantAnswer",
     "GeneratedForm",
     "GeneratedFormField",

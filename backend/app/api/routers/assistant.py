@@ -13,7 +13,7 @@ from app.data.DTO import (
     ConversationSessionRead,
     SessionFeedbackRequest,
 )
-from app.services_v2 import UnifiedWorkflowService, SessionManagerService
+from app.services import UnifiedWorkflowService, SessionManagerService
 
 router = APIRouter(prefix="/assistant", tags=["assistant"])
 

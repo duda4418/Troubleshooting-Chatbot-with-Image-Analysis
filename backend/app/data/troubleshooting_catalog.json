@@ -689,6 +689,86 @@
       ]
     },
     {
+      "slug": "discoloration",
+      "name": "Discoloration or staining on dishes",
+      "severity": "medium",
+      "description": "Dishes show yellowing, browning, or other color changes after washing.",
+      "causes": [
+        {
+          "slug": "high_salt_concentration",
+          "name": "Excessive salt or improper softener regeneration",
+          "priority": 10,
+          "actions": [
+            {
+              "slug": "check_salt_levels",
+              "title": "Check and adjust salt system",
+              "summary": "Too much salt or improper regeneration can cause yellowing on ceramics.",
+              "instructions": [
+                "Check if the salt reservoir is overfilled - drain excess if needed.",
+                "Verify the water hardness setting matches your local water supply.",
+                "Reduce the softener regeneration frequency by one level if available.",
+                "Run 2-3 empty hot cycles to flush excess salt from the system."
+              ]
+            }
+          ]
+        },
+        {
+          "slug": "iron_in_water",
+          "name": "Iron or minerals in water supply",
+          "priority": 20,
+          "actions": [
+            {
+              "slug": "address_iron_staining",
+              "title": "Address iron and mineral staining",
+              "summary": "Iron in water causes rust-colored or yellow stains on dishes.",
+              "instructions": [
+                "Test your water supply for iron content - levels above 0.3 ppm cause staining.",
+                "Install a whole-house water filter or iron removal system if iron is high.",
+                "Run a cleaning cycle with citric acid or dishwasher cleaner to remove existing stains.",
+                "Consider using a rinse aid formulated for hard water with minerals."
+              ]
+            }
+          ]
+        },
+        {
+          "slug": "tea_coffee_tannin",
+          "name": "Tea or coffee tannin staining",
+          "priority": 30,
+          "actions": [
+            {
+              "slug": "remove_tannin_stains",
+              "title": "Remove tannin staining",
+              "summary": "Tea and coffee can leave brownish stains if not rinsed properly.",
+              "instructions": [
+                "Pre-rinse cups and mugs that held tea or coffee before loading.",
+                "Use a hotter cycle (65°C) when washing tea-stained items.",
+                "Add a dishwasher cleaner tablet or oxygen bleach to the cycle.",
+                "For stubborn stains, soak items in warm water with baking soda before washing."
+              ]
+            }
+          ]
+        },
+        {
+          "slug": "detergent_reaction",
+          "name": "Chemical reaction with detergent",
+          "priority": 40,
+          "actions": [
+            {
+              "slug": "change_detergent_type",
+              "title": "Change detergent formulation",
+              "summary": "Some detergents react with certain materials causing discoloration.",
+              "instructions": [
+                "Switch to a different detergent brand or formulation (powder vs. liquid vs. tablet).",
+                "Avoid chlorine-based detergents on colored or decorated ceramics.",
+                "Test with a gentler, fragrance-free detergent on the affected items.",
+                "Wash delicate or colored ceramics on the gentlest cycle available."
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
       "slug": "inconclusive",
       "name": "Image analysis inconclusive",
       "severity": "info",
