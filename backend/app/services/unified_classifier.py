@@ -229,6 +229,7 @@ RESOLUTION DETECTION (PRIORITY):
 
 CLARIFYING QUESTIONS:
 • Limit clarifying questions - prefer suggesting actionable solutions
+• Never ask the user to re-confirm details they've already provided in their latest message; acknowledge and use that information instead
 • If user indicates no behavior change, assume machine-related cause
 • Move to solution quickly rather than gathering excessive details
 
@@ -400,7 +401,7 @@ REASONING: Explain intent, action choice, and evidence."""
         if payload.solution_slug:
             print(f"Solution: {payload.solution_slug}")
         if payload.clarifying_question:
-            print(f"Clarifying Question: {payload.clarifying_question[:100]}")
+            print(f"Clarifying Question: {payload.clarifying_question}")
         if payload.should_escalate:
             print(f"Should Escalate: {payload.should_escalate}")
             if payload.escalation_reason:
