@@ -22,6 +22,7 @@ from app.services import (
     UnifiedResponseService,
     UnifiedWorkflowService,
     FormBuilderService,
+    FormHandlerService,
     SessionManagerService,
 )
 
@@ -132,6 +133,7 @@ def get_assistant_service() -> UnifiedWorkflowService:
         classifier=get_unified_classifier_service(),
         response_generator=get_unified_response_service(),
         form_builder=get_form_builder_service(),
+        form_handler=get_form_handler_service(),
         context_service=get_conversation_context_service(),
         image_analysis=get_image_analysis_service(),
         session_repo=get_conversation_session_repository(),
@@ -139,6 +141,13 @@ def get_assistant_service() -> UnifiedWorkflowService:
         suggestion_repo=get_session_suggestion_repository(),
         solution_repo=get_problem_solution_repository(),
         usage_repo=get_model_usage_repository(),
+    )
+
+
+@lru_cache()
+def get_form_handler_service() -> FormHandlerService:
+    return FormHandlerService(
+        session_repository=get_conversation_session_repository(),
     )
 
 

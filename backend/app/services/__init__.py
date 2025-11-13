@@ -6,6 +6,7 @@ from .unified_classifier import UnifiedClassifierService
 from .unified_response import UnifiedResponseService
 from .unified_workflow import UnifiedWorkflowService
 from .form_builder_service import FormBuilderService
+from .form_handler_service import FormHandlerService
 from .session_manager_service import SessionManagerService
 
 __all__ = [
@@ -17,5 +18,6 @@ __all__ = [
     "UnifiedResponseService",
     "UnifiedWorkflowService",
     "FormBuilderService",
+    "FormHandlerService",
     "SessionManagerService",
 ]

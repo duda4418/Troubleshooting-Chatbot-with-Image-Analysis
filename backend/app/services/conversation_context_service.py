@@ -197,7 +197,8 @@ class ConversationContextService:
         return datetime.min
 
     @staticmethod
-    def _trim_events(events: List[str], limit: int = 30) -> List[str]:
+    def _trim_events(events: List[str], limit: int = 100) -> List[str]:
+        """Keep up to 100 events to preserve full conversation history."""
         if len(events) <= limit:
             return events
         return events[-limit:]

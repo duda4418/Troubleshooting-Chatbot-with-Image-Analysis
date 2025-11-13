@@ -31,6 +31,7 @@ from app.services.utils.image_payload import resolve_image_mime
 from app.services.unified_classifier import UnifiedClassifierService
 from app.services.unified_response import UnifiedResponseService
 from app.services.form_builder_service import FormBuilderService
+from app.services.form_handler_service import FormHandlerService
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +45,7 @@ class UnifiedWorkflowService:
         classifier: UnifiedClassifierService,
         response_generator: UnifiedResponseService,
         form_builder: FormBuilderService,
+        form_handler: FormHandlerService,
         context_service: ConversationContextService,
         image_analysis: ImageAnalysisService,
         session_repo: ConversationSessionRepository,
@@ -55,6 +57,7 @@ class UnifiedWorkflowService:
         self._classifier = classifier
         self._response_generator = response_generator
         self._form_builder = form_builder
+        self._form_handler = form_handler
         self._context_service = context_service
         self._image_analysis = image_analysis
         self._session_repo = session_repo
@@ -84,6 +87,7 @@ class UnifiedWorkflowService:
         form_response = request.metadata.get("follow_up_form_response", {})
         is_form_interaction = request.metadata.get("client_hidden", False) and isinstance(form_response, dict)
         is_dismissal = is_form_interaction and form_response.get("status") == "dismissed"
+        is_submission = is_form_interaction and form_response.get("status") == "submitted"
         
         # Mark the original form as consumed if this is a form interaction
         if is_form_interaction:
@@ -116,6 +120,47 @@ class UnifiedWorkflowService:
                 ),
                 form_id=None,
             )
+        
+        if is_submission:
+            logger.info("Form submission detected - processing with form handler")
+            # Persist the user message with submission metadata
+            user_message = await self._persist_user_message(
+                session_id=session_id,
+                content=request.text or "",
+                request=request,
+            )
+            logger.info(f"Submission message persisted: {user_message.id}")
+            
+            # Handle the form submission
+            action_result = await self._form_handler.handle_form_response(session_id, form_response)
+            
+            # If action_result is None, continue with normal flow (NO was selected)
+            if action_result is None:
+                logger.info("Form returned NO - continuing with normal classification flow")
+                # Let it fall through to normal classification
+            else:
+                # YES was selected - close conversation with final message
+                logger.info(f"Form action: {action_result['action']}")
+                
+                from app.data.DTO.assistant_api_dto import AssistantMessageResponse
+                
+                answer = AssistantAnswer(
+                    reply=action_result["reply"],
+                    suggested_actions=[],
+                    follow_up_form=None,
+                )
+                
+                assistant_message = await self._persist_assistant_message(session_id, answer)
+                logger.info(f"Final message persisted: {assistant_message.id}")
+                logger.info("=" * 80)
+                
+                return AssistantMessageResponse(
+                    session_id=session_id,
+                    user_message_id=user_message.id,
+                    assistant_message_id=assistant_message.id,
+                    answer=answer,
+                    form_id=None,
+                )
         
         # Extract user text
         user_text = (request.text or "").strip()
@@ -340,11 +385,13 @@ class UnifiedWorkflowService:
                 logger.warning(f"Solution not found for slug: {solution_slug}")
                 return
             
+            logger.info(f"Creating suggestion record: session={session_id}, solution={solution.id}, slug={solution_slug}")
             suggestion = SessionSuggestion(
                 session_id=session_id,
                 solution_id=solution.id,
             )
-            await self._suggestion_repo.create(suggestion)
+            created = await self._suggestion_repo.create(suggestion)
+            logger.info(f"Suggestion tracked successfully: {created.id}")
         except Exception:
             logger.exception(f"Failed to track solution {solution_slug}")
     
@@ -385,3 +432,5 @@ class UnifiedWorkflowService:
             logger.info(f"Marked form in message {message_id} as consumed")
         except Exception:
             logger.exception(f"Failed to mark form consumed for message {message_id}")
+
+

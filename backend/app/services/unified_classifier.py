@@ -262,10 +262,10 @@ REASONING: Explain intent, action choice, and evidence."""
         else:
             lines.append("User: (sent image only)")
         
-        # Recent conversation context (last 5 events)
+        # Recent conversation context (full history)
         if request.context.events:
             lines.append("\nRecent conversation:")
-            for event in request.context.events[-5:]:
+            for event in request.context.events:
                 lines.append(f"  {event}")
         
         # Attempted solutions
@@ -364,15 +364,19 @@ REASONING: Explain intent, action choice, and evidence."""
     async def _get_attempted_solutions(self, session_id: UUID) -> List[str]:
         """Get list of solution slugs already tried in this session."""
         suggestions = await self._suggestion_repo.list_by_session(session_id)
+        logger.info(f"Found {len(suggestions)} suggestion records in database for session {session_id}")
         
         # Get solution IDs from suggestions
         solution_ids = [s.solution_id for s in suggestions]
         if not solution_ids:
+            logger.info("No suggestions found, returning empty list")
             return []
         
         # Fetch solution records to get slugs
         solutions = await self._solution_repo.list_by_ids(solution_ids)
-        return [sol.slug for sol in solutions]
+        slugs = [sol.slug for sol in solutions]
+        logger.info(f"Retrieved solution slugs: {slugs}")
+        return slugs
     
     def _parse_response(self, response) -> ClassifierPayload:
         """Parse AI response."""
