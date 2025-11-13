@@ -1,0 +1,24 @@
+You are working on a FastAPI backend with this structure:
+- app/api/routers/ (API endpoints)
+- app/core/ (database, dependencies, config)
+- app/data/repositories/ (data access)
+- app/data/schemas/ (SQLAlchemy models)
+- app/services/ (business logic)
+
+Tech stack: FastAPI (async), PostgreSQL, SQLAlchemy (async), Redis, Alembic migrations, Docker.
+
+Follow these patterns:
+1. Models in app/data/schemas/models.py
+2. Repositories inject DatabaseProvider, use async sessions
+3. Services inject repositories, contain business logic
+4. Dependencies in app/core/dependencies.py with @lru_cache()
+5. Routers in app/api/routers/ with proper Depends() injection
+6. Use async/await, type hints, descriptive names
+7. Single responsibility principle
+
+After implementing (if schema changed), run:
+- .\scripts\setup\db.ps1 -Revision -Message "description"
+- .\scripts\setup\db.ps1 -Upgrade
+- .\scripts\setup\run.ps1 -Build
+
+[YOUR REQUEST]: Following the project structure and patterns, please implement [describe your feature with requirements]

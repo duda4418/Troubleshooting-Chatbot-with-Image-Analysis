@@ -1,0 +1,831 @@
+{
+  "version": "1.0",
+  "problems": [
+    {
+      "slug": "dirty",
+      "name": "Dishes remain dirty",
+      "severity": "medium",
+      "description": "Food soil is still visible after the wash cycle finishes.",
+      "causes": [
+        {
+          "slug": "low_wash_temperature",
+          "name": "Low wash temperature (<55°C)",
+          "priority": 10,
+          "actions": [
+            {
+              "slug": "raise_wash_temperature",
+              "title": "Raise the main wash temperature",
+              "summary": "Ensure the machine reaches a hot enough wash phase to break down grease and detergent.",
+              "instructions": [
+                "Set the temperature or program to reach at least 60°C before the next cycle.",
+                "Select an Intensive or Hygiene program instead of Eco when heavy soil is present.",
+                "When cookware allows, choose a 65°C cycle to clear stubborn residue."
+              ]
+            }
+          ]
+        },
+        {
+          "slug": "incorrect_cycle",
+          "name": "Incorrect cycle (Eco/Quick instead of Intensive)",
+          "priority": 20,
+          "actions": [
+            {
+              "slug": "select_intensive_cycle",
+              "title": "Pick a longer, high-heat cycle",
+              "summary": "Quick or Eco programs may not provide enough time or heat for baked-on soil.",
+              "instructions": [
+                "Switch to an Intensive, Hygiene, or Heavy cycle for cookware with dried food.",
+                "If Intensive is unavailable, run a Normal program with an extra rinse option.",
+                "Avoid Quick cycles until the dishwasher is consistently cleaning well again."
+              ]
+            }
+          ]
+        },
+        {
+          "slug": "under_dosing_detergent",
+          "name": "Under-dosing of detergent or device product",
+          "priority": 30,
+          "actions": [
+            {
+              "slug": "increase_detergent_amount",
+              "title": "Increase the detergent dosage",
+              "summary": "Too little detergent leaves grease and starch behind.",
+              "instructions": [
+                "Increase the detergent setting or add one extra push on the dispenser/device.",
+                "Use the Boost Clean or heavy soil mode for the next two cycles.",
+                "Re-check dosage once the load finishes to avoid product build-up."
+              ]
+            }
+          ]
+        },
+        {
+          "slug": "clogged_spray_arms_or_filter",
+          "name": "Clogged spray arms or filter",
+          "priority": 40,
+          "actions": [
+            {
+              "slug": "clean_filters",
+              "title": "Clean the filter system",
+              "summary": "Blocked filters restrict water circulation and allow soil to recirculate.",
+              "instructions": [
+                "Remove the filter assembly and rinse it thoroughly under warm water.",
+                "Soak the filter in hot water for 10 minutes if grease has built up.",
+                "Reinstall the filter securely to prevent bypass leaks."
+              ]
+            },
+            {
+              "slug": "clear_spray_arms",
+              "title": "Clear spray-arm jets",
+              "summary": "Spray arms clogged with debris cannot deliver proper pressure.",
+              "instructions": [
+                "Detach upper and lower spray arms and flush them under running water.",
+                "Use a toothpick or soft brush to clear any blocked nozzles.",
+                "Spin each arm by hand before reinstalling to confirm free rotation."
+              ]
+            }
+          ]
+        },
+        {
+          "slug": "overloaded_racks",
+          "name": "Overloaded racks blocking spray rotation",
+          "priority": 50,
+          "actions": [
+            {
+              "slug": "improve_rack_loading",
+              "title": "Improve rack loading",
+              "summary": "Items that touch or block spray arms prevent full coverage.",
+              "instructions": [
+                "Space dishes roughly 2 cm apart so water can hit every surface.",
+                "Avoid tall trays or pans that block the spray arm path.",
+                "Raise the upper rack if adjustable to create clearance for large plates."
+              ]
+            }
+          ]
+        },
+        {
+          "slug": "heater_or_sensor_fault",
+          "name": "Heater element or temperature sensor malfunction",
+          "priority": 60,
+          "actions": [
+            {
+              "slug": "run_heater_diagnostics",
+              "title": "Run heater diagnostics",
+              "summary": "If the unit cannot heat, professional service may be required.",
+              "instructions": [
+                "Run the built-in self-test or diagnostic mode if your dishwasher supports it.",
+                "Listen for heating during a hot cycle; if water stays cold, contact support.",
+                "Schedule an authorized technician to inspect the heater and temperature sensor."
+              ],
+              "requires_escalation": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "spots",
+      "name": "Spots or film on glassware",
+      "severity": "low",
+      "description": "Water spots or streaks remain on glass and dishes after drying.",
+      "causes": [
+        {
+          "slug": "low_rinse_aid_setting",
+          "name": "Low rinse aid setting",
+          "priority": 10,
+          "actions": [
+            {
+              "slug": "increase_rinse_aid",
+              "title": "Raise the rinse-aid dosage",
+              "summary": "Rinse aid helps water sheet off glass instead of leaving spots.",
+              "instructions": [
+                "Adjust the rinse-aid dial to level 3 or higher.",
+                "If spotting persists, move to level 4 for the next few cycles.",
+                "Wipe the dispenser nozzle clean to maintain even flow."
+              ]
+            }
+          ]
+        },
+        {
+          "slug": "hard_water_not_treated",
+          "name": "Hard water minerals not neutralized",
+          "priority": 20,
+          "actions": [
+            {
+              "slug": "enable_hard_water_mode",
+              "title": "Enable hard-water features",
+              "summary": "Mineral-heavy water needs additional softening to avoid spotting.",
+              "instructions": [
+                "Refill dishwasher salt and confirm the cap seals firmly.",
+                "Match the built-in softener setting to your local water hardness.",
+                "Turn on the hard-water or mineral-guard mode if available."
+              ]
+            }
+          ]
+        },
+        {
+          "slug": "rinse_aid_dispenser_issue",
+          "name": "Rinse aid dispenser empty or malfunctioning",
+          "priority": 30,
+          "actions": [
+            {
+              "slug": "restore_rinse_aid_flow",
+              "title": "Restore rinse-aid flow",
+              "summary": "A clogged or empty dispenser cannot dose properly.",
+              "instructions": [
+                "Top up the rinse-aid reservoir until the indicator shows full.",
+                "Clean the dispenser nozzle and flap to remove dried product.",
+                "Run a normal cycle and verify the indicator drops afterward."
+              ]
+            }
+          ]
+        },
+        {
+          "slug": "salt_reservoir_empty",
+          "name": "Salt reservoir empty or valve blocked",
+          "priority": 40,
+          "actions": [
+            {
+              "slug": "service_salt_system",
+              "title": "Service the salt regeneration system",
+              "summary": "Without salt the softener cannot protect against lime scale.",
+              "instructions": [
+                "Refill the salt reservoir with dishwasher salt until brine covers the opening.",
+                "Check the valve area for salt bridges and break them up with a spoon handle.",
+                "Rinse away spills to prevent corrosion around the cap."
+              ]
+            }
+          ]
+        },
+        {
+          "slug": "improper_drying",
+          "name": "Improper drying or door opened too early",
+          "priority": 50,
+          "actions": [
+            {
+              "slug": "improve_drying_phase",
+              "title": "Improve the drying phase",
+              "summary": "Opening the door early leaves condensed droplets on glass.",
+              "instructions": [
+                "Keep the door closed until the full drying cycle completes.",
+                "Use an AutoDry or ExtraDry option for glassware loads.",
+                "Let items sit for 10 minutes after the end signal before unloading."
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "residue",
+      "name": "Powdery or gritty residue",
+      "severity": "medium",
+      "description": "Detergent grains or food residue settle on dishes after washing.",
+      "causes": [
+        {
+          "slug": "overloaded_racks",
+          "name": "Overloading the racks, blocking water flow",
+          "priority": 10,
+          "actions": [
+            {
+              "slug": "space_items_evenly",
+              "title": "Space items for full spray coverage",
+              "summary": "Crowded racks trap detergent and food particles.",
+              "instructions": [
+                "Leave about 2 cm between plates and bowls.",
+                "Angle cups and bowls so water drains freely.",
+                "Avoid stacking utensils; use the cutlery rack or basket separators."
+              ]
+            }
+          ]
+        },
+        {
+          "slug": "detergent_not_dissolving",
+          "name": "Powder detergent not fully dissolved in cold cycle",
+          "priority": 20,
+          "actions": [
+            {
+              "slug": "switch_detergent_or_cycle",
+              "title": "Help detergent dissolve",
+              "summary": "Low-temperature cycles can leave powder trapped in the dispenser.",
+              "instructions": [
+                "Run Normal or Intensive cycles when using powder detergent.",
+                "If residue continues, switch to a liquid or gel formula.",
+                "Enable pre-rinse only when dishes are heavily soiled."
+              ]
+            }
+          ]
+        },
+        {
+          "slug": "excess_detergent",
+          "name": "Excess detergent causing re-deposition",
+          "priority": 30,
+          "actions": [
+            {
+              "slug": "reduce_detergent_dose",
+              "title": "Use the correct detergent amount",
+              "summary": "Too much detergent leaves a chalky film as the water dries.",
+              "instructions": [
+                "Measure detergent according to water hardness and soil level.",
+                "Dial the automatic dispenser down one step once loads are clean.",
+                "Perform one cycle with standard dosage to confirm improvement."
+              ]
+            }
+          ]
+        },
+        {
+          "slug": "low_water_temperature",
+          "name": "Low water temperature (<50°C)",
+          "priority": 40,
+          "actions": [
+            {
+              "slug": "raise_temperature_against_residue",
+              "title": "Raise temperature for residue removal",
+              "summary": "Hotter water keeps fats dissolved until the final rinse.",
+              "instructions": [
+                "Set the cycle temperature to at least 55°C for the next few washes.",
+                "Enable the anti-residue or hygiene option if your model provides it.",
+                "Confirm the hot-water supply entering the dishwasher is at least 49°C."
+              ]
+            }
+          ]
+        },
+        {
+          "slug": "blocked_filter_or_arms",
+          "name": "Blocked filter or partially clogged spray arms",
+          "priority": 50,
+          "actions": [
+            {
+              "slug": "deep_clean_wash_system",
+              "title": "Deep clean the wash system",
+              "summary": "Clogs recirculate food particles and undissolved detergent.",
+              "instructions": [
+                "Clean the filter thoroughly under running water.",
+                "Remove spray arms and soak them in warm water or vinegar.",
+                "Run an empty hot cycle with dishwasher cleaner to flush the interior."
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "cloudy_glass",
+      "name": "Cloudy or etched glass",
+      "severity": "low",
+      "description": "Glasses look dull, cloudy, or etched after repeated washes.",
+      "causes": [
+        {
+          "slug": "high_temperature_with_soft_water",
+          "name": "High temperature with soft water leading to etching",
+          "priority": 10,
+          "actions": [
+            {
+              "slug": "lower_glass_temperature",
+              "title": "Lower the glassware wash temperature",
+              "summary": "Soft water and very hot cycles can etch delicate glass.",
+              "instructions": [
+                "Select a program that keeps the main wash between 50°C and 55°C.",
+                "Use the Glass or Eco cycle for loads dominated by stemware.",
+                "Avoid sanitize or heavy-duty cycles when washing fine glass."
+              ]
+            }
+          ]
+        },
+        {
+          "slug": "excess_rinse_aid",
+          "name": "Excess rinse aid dosage",
+          "priority": 20,
+          "actions": [
+            {
+              "slug": "reduce_rinse_aid_for_glass",
+              "title": "Reduce rinse-aid dosing",
+              "summary": "Too much rinse aid can leave a milky film on glass.",
+              "instructions": [
+                "Turn the rinse-aid setting down to level 1 or the lowest notch.",
+                "Disable rinse aid temporarily and test one cycle.",
+                "Reintroduce rinse aid gradually until spotting stops without clouding."
+              ]
+            }
+          ]
+        },
+        {
+          "slug": "hard_water_film",
+          "name": "Hard water film or calcium deposits",
+          "priority": 30,
+          "actions": [
+            {
+              "slug": "remove_calcium_deposits",
+              "title": "Remove calcium build-up",
+              "summary": "Mineral deposits leave a cloudy sheen that mimics etching.",
+              "instructions": [
+                "Run one cycle with dishwasher cleaner or citric acid to descale the interior.",
+                "Verify the salt system is filled and adjusted to local hardness.",
+                "Hand-wash cloudy glass with warm vinegar, then test again in a gentle cycle."
+              ]
+            }
+          ]
+        },
+        {
+          "slug": "glassware_not_dishwasher_safe",
+          "name": "Glassware not dishwasher safe",
+          "priority": 40,
+          "actions": [
+            {
+              "slug": "handle_delicate_glass",
+              "title": "Handle delicate glassware carefully",
+              "summary": "Some crystal or decorated glass is prone to permanent damage.",
+              "instructions": [
+                "Confirm the manufacturer labels the glassware as dishwasher safe.",
+                "Place fragile pieces on the top rack away from heating elements.",
+                "If clouding persists, hand-wash the affected pieces to avoid etching."
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "greasy",
+      "name": "Greasy film on dishes",
+      "severity": "medium",
+      "description": "A greasy sheen or residue covers plates and pans after washing.",
+      "causes": [
+        {
+          "slug": "wash_too_cool",
+          "name": "Too low wash temperature",
+          "priority": 10,
+          "actions": [
+            {
+              "slug": "increase_wash_heat",
+              "title": "Increase wash heat",
+              "summary": "Grease needs sustained heat to liquefy and rinse away.",
+              "instructions": [
+                "Choose an Intensive or Heavy cycle that reaches at least 65°C.",
+                "Confirm the hot-water supply entering the dishwasher is hot from the tap.",
+                "Use hot start or preheat the water by running the sink for 30 seconds."
+              ]
+            }
+          ]
+        },
+        {
+          "slug": "cycle_too_short",
+          "name": "Cycle too short for grease breakdown",
+          "priority": 20,
+          "actions": [
+            {
+              "slug": "run_extended_cycle",
+              "title": "Run a full-length heavy soil cycle",
+              "summary": "Short programs may skip crucial soaking and hot rinses.",
+              "instructions": [
+                "Select Heavy or Intensive with a hot rinse option enabled.",
+                "Avoid Rapid or Express cycles when washing greasy pans.",
+                "Add an extra rinse or drying booster if available."
+              ]
+            }
+          ]
+        },
+        {
+          "slug": "insufficient_detergent",
+          "name": "Insufficient detergent or device output",
+          "priority": 30,
+          "actions": [
+            {
+              "slug": "boost_detergent",
+              "title": "Boost detergent dosing",
+              "summary": "More detergent helps break down oils and hold them in suspension.",
+              "instructions": [
+                "Increase detergent or device output one step for the next wash.",
+                "Use a degrease or boost mode if your machine offers it.",
+                "After results improve, dial back to the minimum amount that keeps dishes clean."
+              ]
+            }
+          ]
+        },
+        {
+          "slug": "grease_build_up",
+          "name": "Grease buildup in filters or arms",
+          "priority": 40,
+          "actions": [
+            {
+              "slug": "degrease_internal_parts",
+              "title": "Degrease internal parts",
+              "summary": "Residual grease on filters and spray arms re-deposits on dishes.",
+              "instructions": [
+                "Clean the filter thoroughly using hot water and mild detergent.",
+                "Soak spray arms or run them under hot water with vinegar to dissolve grease.",
+                "Run an empty hot cycle with dishwasher cleaner to flush the hoses."
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "streaks",
+      "name": "Streaks or lines on dishes",
+      "severity": "low",
+      "description": "Waxy streaks appear on plates or glass surfaces after drying.",
+      "causes": [
+        {
+          "slug": "overdosing_rinse_aid",
+          "name": "Overdosing rinse aid",
+          "priority": 10,
+          "actions": [
+            {
+              "slug": "dial_back_rinse_aid",
+              "title": "Dial back rinse-aid dosing",
+              "summary": "Excess rinse aid can leave streaks as it dries.",
+              "instructions": [
+                "Lower the rinse-aid setting to level 1 or the minimum.",
+                "If streaks continue, temporarily disable rinse aid for one load.",
+                "Wipe the dispenser nozzle to prevent drips onto dishes."
+              ]
+            }
+          ]
+        },
+        {
+          "slug": "water_too_soft",
+          "name": "Water too soft",
+          "priority": 20,
+          "actions": [
+            {
+              "slug": "rebalance_softener",
+              "title": "Re-balance the softener",
+              "summary": "Over-softened water leaves a slick residue.",
+              "instructions": [
+                "Increase the water-hardness value on the built-in softener by one level.",
+                "If the unit uses salt, reduce regeneration frequency slightly.",
+                "Test with a hardness strip and adjust until streaks disappear."
+              ]
+            }
+          ]
+        },
+        {
+          "slug": "excess_detergent_foam",
+          "name": "Excess detergent foam",
+          "priority": 30,
+          "actions": [
+            {
+              "slug": "cut_back_detergent",
+              "title": "Cut back detergent volume",
+              "summary": "Too much detergent foams and drags residue across plates.",
+              "instructions": [
+                "Reduce detergent by one tablespoon or one dispenser notch.",
+                "Use tablets or pods only when the load is full and heavily soiled.",
+                "If using pods, avoid pre-rinsing dishes to let enzymes work properly."
+              ]
+            }
+          ]
+        },
+        {
+          "slug": "fast_drying",
+          "name": "Fast drying or door opened too early",
+          "priority": 40,
+          "actions": [
+            {
+              "slug": "slow_down_drying",
+              "title": "Slow the drying phase",
+              "summary": "Letting dishes cool gradually prevents streak formation.",
+              "instructions": [
+                "Keep the door closed for at least 15 minutes after the cycle ends.",
+                "Use an extended dry or AutoOpen feature instead of propping the door immediately.",
+                "If your unit auto-opens, wait for the fan to finish before unloading."
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "white_film",
+      "name": "White film or chalky deposits",
+      "severity": "high",
+      "description": "A white film coats dishes and the dishwasher interior.",
+      "causes": [
+        {
+          "slug": "high_calcium_water",
+          "name": "High calcium or limescale in water",
+          "priority": 10,
+          "actions": [
+            {
+              "slug": "restore_softening",
+              "title": "Restore water softening",
+              "summary": "Calcium deposits accumulate when the softener cannot regenerate.",
+              "instructions": [
+                "Fill the salt compartment and wipe away spills immediately.",
+                "Set the water-hardness level to match local ppm readings.",
+                "Run a limescale-clean mode or hot vinegar cycle to dissolve existing film."
+              ]
+            }
+          ]
+        },
+        {
+          "slug": "salt_system_issue",
+          "name": "Salt system not regenerating properly",
+          "priority": 20,
+          "actions": [
+            {
+              "slug": "service_softener",
+              "title": "Service the softener system",
+              "summary": "If salt is present but film returns quickly, the softener needs attention.",
+              "instructions": [
+                "Verify the salt cap seals and the float moves freely.",
+                "Break up any salt bridge and refill with fresh dishwasher salt.",
+                "If regeneration alarms appear, schedule technician support."
+              ]
+            }
+          ]
+        },
+        {
+          "slug": "low_rinse_aid_dosage",
+          "name": "Low rinse aid dosage",
+          "priority": 30,
+          "actions": [
+            {
+              "slug": "raise_rinse_aid_for_film",
+              "title": "Raise rinse-aid dosage",
+              "summary": "Rinse aid prevents calcium-laden water from drying on dishes.",
+              "instructions": [
+                "Increase the rinse-aid dial to level 3.",
+                "If spotting persists, go up one notch until film disappears.",
+                "Use rinse-aid refills formulated for hard water when available."
+              ]
+            }
+          ]
+        },
+        {
+          "slug": "repeated_short_cycles",
+          "name": "Repeated short cycles",
+          "priority": 40,
+          "actions": [
+            {
+              "slug": "alternate_with_hot_cycles",
+              "title": "Alternate with full hot cycles",
+              "summary": "Short cycles never reach the temperatures needed to dissolve minerals.",
+              "instructions": [
+                "Run a hot clean cycle with dishwasher cleaner once per week.",
+                "Avoid using only quick cycles; rotate in Normal or Intensive programs.",
+                "If film persists, run an empty sanitize or 65°C cycle with citric acid."
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "odour",
+      "name": "Unpleasant odour",
+      "severity": "medium",
+      "description": "A sour or musty smell comes from the dishwasher between uses.",
+      "causes": [
+        {
+          "slug": "food_trapped",
+          "name": "Trapped food in filter or seals",
+          "priority": 10,
+          "actions": [
+            {
+              "slug": "deep_clean_filter_and_seals",
+              "title": "Deep clean filters and door seals",
+              "summary": "Trapped food particles decompose and create odours.",
+              "instructions": [
+                "Remove the filter assembly and scrub it with hot soapy water.",
+                "Wipe the door seal and folds with a vinegar-damp cloth.",
+                "Check the sump area for trapped food and remove any debris."
+              ]
+            }
+          ]
+        },
+        {
+          "slug": "infrequent_use",
+          "name": "Bacterial growth due to infrequent use",
+          "priority": 20,
+          "actions": [
+            {
+              "slug": "run_hot_maintenance_cycle",
+              "title": "Run maintenance cycles",
+              "summary": "Regular hot cycles keep bacteria from multiplying.",
+              "instructions": [
+                "Run an empty hot rinse or sanitize cycle once a week when the dishwasher is idle.",
+                "Use an odor-removal or machine-cleaning mode if available.",
+                "Leave the door ajar slightly after cycles so the tub can dry."
+              ]
+            }
+          ]
+        },
+        {
+          "slug": "stagnant_water",
+          "name": "Residual water stagnation",
+          "priority": 30,
+          "actions": [
+            {
+              "slug": "drain_and_flush",
+              "title": "Drain and flush the system",
+              "summary": "Standing water becomes stale and smells over time.",
+              "instructions": [
+                "Inspect and clean the drain area, removing any sludge.",
+                "Run a high-temperature sanitize cycle with a dishwasher cleaner.",
+                "Dry the filter and interior before reassembling if the machine will sit unused."
+              ]
+            }
+          ]
+        },
+        {
+          "slug": "grease_in_hoses",
+          "name": "Grease in hoses or drain",
+          "priority": 40,
+          "actions": [
+            {
+              "slug": "flush_drain_path",
+              "title": "Flush the drain path",
+              "summary": "Grease buildup traps odour-causing residue inside hoses.",
+              "instructions": [
+                "Inspect the drain hose for kinks or buildup and straighten if needed.",
+                "Run an empty hot cycle with baking soda or dishwasher cleaner.",
+                "If odour remains, detach and rinse the hose or call for service."
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "discoloration",
+      "name": "Discoloration or staining on dishes",
+      "severity": "medium",
+      "description": "Dishes show yellowing, browning, or other color changes after washing.",
+      "causes": [
+        {
+          "slug": "high_salt_concentration",
+          "name": "Excessive salt or improper softener regeneration",
+          "priority": 10,
+          "actions": [
+            {
+              "slug": "check_salt_levels",
+              "title": "Check and adjust salt system",
+              "summary": "Too much salt or improper regeneration can cause yellowing on ceramics.",
+              "instructions": [
+                "Check if the salt reservoir is overfilled - drain excess if needed.",
+                "Verify the water hardness setting matches your local water supply.",
+                "Reduce the softener regeneration frequency by one level if available.",
+                "Run 2-3 empty hot cycles to flush excess salt from the system."
+              ]
+            }
+          ]
+        },
+        {
+          "slug": "iron_in_water",
+          "name": "Iron or minerals in water supply",
+          "priority": 20,
+          "actions": [
+            {
+              "slug": "address_iron_staining",
+              "title": "Address iron and mineral staining",
+              "summary": "Iron in water causes rust-colored or yellow stains on dishes.",
+              "instructions": [
+                "Test your water supply for iron content - levels above 0.3 ppm cause staining.",
+                "Install a whole-house water filter or iron removal system if iron is high.",
+                "Run a cleaning cycle with citric acid or dishwasher cleaner to remove existing stains.",
+                "Consider using a rinse aid formulated for hard water with minerals."
+              ]
+            }
+          ]
+        },
+        {
+          "slug": "tea_coffee_tannin",
+          "name": "Tea or coffee tannin staining",
+          "priority": 30,
+          "actions": [
+            {
+              "slug": "remove_tannin_stains",
+              "title": "Remove tannin staining",
+              "summary": "Tea and coffee can leave brownish stains if not rinsed properly.",
+              "instructions": [
+                "Pre-rinse cups and mugs that held tea or coffee before loading.",
+                "Use a hotter cycle (65°C) when washing tea-stained items.",
+                "Add a dishwasher cleaner tablet or oxygen bleach to the cycle.",
+                "For stubborn stains, soak items in warm water with baking soda before washing."
+              ]
+            }
+          ]
+        },
+        {
+          "slug": "detergent_reaction",
+          "name": "Chemical reaction with detergent",
+          "priority": 40,
+          "actions": [
+            {
+              "slug": "change_detergent_type",
+              "title": "Change detergent formulation",
+              "summary": "Some detergents react with certain materials causing discoloration.",
+              "instructions": [
+                "Switch to a different detergent brand or formulation (powder vs. liquid vs. tablet).",
+                "Avoid chlorine-based detergents on colored or decorated ceramics.",
+                "Test with a gentler, fragrance-free detergent on the affected items.",
+                "Wash delicate or colored ceramics on the gentlest cycle available."
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "inconclusive",
+      "name": "Image analysis inconclusive",
+      "severity": "info",
+      "description": "Uploaded imagery does not clearly show the dishwasher situation.",
+      "causes": [
+        {
+          "slug": "poor_lighting",
+          "name": "Camera glare or poor lighting",
+          "priority": 10,
+          "actions": [
+            {
+              "slug": "improve_lighting",
+              "title": "Improve lighting for images",
+              "summary": "Bright, even lighting lets the assistant inspect the racks.",
+              "instructions": [
+                "Turn on room lights and avoid using flash directly on reflective surfaces.",
+                "Hold the phone steady with two hands to reduce blur.",
+                "Capture a second photo if the first still looks dark or washed out."
+              ]
+            }
+          ]
+        },
+        {
+          "slug": "partial_view",
+          "name": "Partial dishwasher view",
+          "priority": 20,
+          "actions": [
+            {
+              "slug": "capture_full_rack",
+              "title": "Capture the full rack",
+              "summary": "Seeing both racks helps diagnose loading or blockage issues.",
+              "instructions": [
+                "Frame the photo so the top and bottom racks are both visible.",
+                "Step back slightly and keep the door fully open.",
+                "If needed, take two photos showing upper and lower areas separately."
+              ]
+            }
+          ]
+        },
+        {
+          "slug": "missing_detail",
+          "name": "Image unclear or mixed signals",
+          "priority": 30,
+          "actions": [
+            {
+              "slug": "add_context_images",
+              "title": "Add context images",
+              "summary": "Close-ups and context shots help the assistant reason about the issue.",
+              "instructions": [
+                "Take a close-up of the problem item such as a cloudy glass or dirty plate.",
+                "Show the detergent device placement or filter area if relevant.",
+                "Upload multiple images when possible to give different perspectives."
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

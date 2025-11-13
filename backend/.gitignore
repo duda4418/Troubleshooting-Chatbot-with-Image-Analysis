@@ -12,9 +12,6 @@ env/
 # Environment files
 .env
 
-backend/.env
-frontend/.env
-
 # Logs & coverage
 logs/
 *.log
@@ -25,18 +22,6 @@ coverage/
 .idea/
 .vscode/
 
-# GitHub metadata
-.github/
-
-# Frontend build output
-frontend/node_modules/
-frontend/dist/
-frontend/.parcel-cache/
-frontend/.next/
-frontend/.turbo/
-frontend/.env
-frontend/.env.*
-
-# OS artifacts
+# Misc OS files
 .DS_Store
 Thumbs.db
