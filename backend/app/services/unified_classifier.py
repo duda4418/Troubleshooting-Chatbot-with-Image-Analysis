@@ -46,7 +46,10 @@ class ClassifierPayload(BaseModel):
     intent: str = Field(description="User intent: new_problem, clarifying, feedback_positive, feedback_negative, request_escalation, confirm_resolved, confirm_unresolved, out_of_scope, unintelligible, contradictory")
     next_action: str = Field(description="Next action: suggest_solution, ask_clarifying_question, present_resolution_form, present_escalation_form, present_feedback_form, close_resolved, escalate, decline_out_of_scope, request_clear_input")
     confidence: float = Field(ge=0, le=1, description="Confidence in classification")
-    reasoning: str = Field(description="Detailed explanation of why this classification was made")
+    reasoning: str = Field(
+        description="Detailed explanation of why this classification was made",
+        max_length=500
+    )
     
     # Problem details
     problem_category_slug: Optional[str] = None
@@ -54,15 +57,19 @@ class ClassifierPayload(BaseModel):
     solution_slug: Optional[str] = None
     
     # Clarification
-    clarifying_question: Optional[str] = None
+    clarifying_question: Optional[str] = Field(
+        default=None,
+        max_length=300,
+        description="Concise clarifying question (1-2 sentences max)"
+    )
     
     # Issues
-    contradiction_details: Optional[str] = None
-    out_of_scope_reason: Optional[str] = None
+    contradiction_details: Optional[str] = Field(default=None, max_length=300)
+    out_of_scope_reason: Optional[str] = Field(default=None, max_length=300)
     
     # Escalation
     should_escalate: bool = False
-    escalation_reason: Optional[str] = None
+    escalation_reason: Optional[str] = Field(default=None, max_length=300)
 
 
 class UnifiedClassifierService:
@@ -170,24 +177,71 @@ class UnifiedClassifierService:
     
     def _build_instructions(self) -> str:
         """Build classifier instructions."""
-        return """Dishwasher troubleshooting classifier. Determine: intent, next_action, problem details, reasoning.
+        return """You are a dishwasher troubleshooting assistant. Analyze the situation and determine the next action.
 
-INTENTS: new_problem, clarifying, feedback_positive, feedback_negative, request_escalation, confirm_resolved, confirm_unresolved, out_of_scope, unintelligible, contradictory
+INTENTS:
+• new_problem - User reports an issue or sends image of problem
+• clarifying - User provides more details about current problem
+• feedback_positive - Solution worked or image shows improvement
+• feedback_negative - Solution didn't work
+• request_escalation - User wants human help
+• confirm_resolved - User confirms problem is fixed
+• out_of_scope - Not dishwasher related
+• unintelligible - Can't understand input
 
-ACTIONS: suggest_solution, ask_clarifying_question, present_resolution_form, present_escalation_form, present_feedback_form, close_resolved, escalate, decline_out_of_scope, request_clear_input
+ACTIONS:
+• suggest_solution - Recommend a specific solution to try
+• ask_clarifying_question - Need more information before proceeding
+• present_resolution_form - Ask if problem is resolved
+• present_escalation_form - Offer escalation to human support
+• close_resolved - Close session as resolved
+• escalate - Transfer to human support
+• decline_out_of_scope - Politely decline non-dishwasher issues
 
-KEY RULES:
-• Empty text + image analysis = new_problem
-• "escalate" first time = new_problem (try to help first)
-• After 1-2 fails + user mentions escalate = present_escalation_form
-• After 3+ fails = present_escalation_form
-• "it worked" = present_resolution_form (confirm before closing)
-• After resolution form "yes" = close_resolved
-• After escalation form "yes" = escalate
-• Check attempted_solutions - don't repeat
-• Suggest ONE solution at a time
-• After solution → present_feedback_form
-• Use image keywords (cloudy/spots/streaks/residue/dirty) for problem category
+WORKFLOW:
+1. NO problem selected yet → Use image analysis + user text to identify problem CATEGORY
+   - Set next_action: ask_clarifying_question
+   - Wait for confirmation before suggesting solutions
+   - DO NOT suggest solutions yet
+
+2. Problem CONFIRMED → Now you see causes/solutions for that category
+   - Identify most likely cause based on symptoms
+   - Set action: suggest_solution
+   - Don't repeat already attempted solutions
+
+3. After suggestion → Evaluate outcome
+   - Image analysis indicates resolution → intent: feedback_positive, action: present_resolution_form
+   - User reports success → intent: feedback_positive, action: present_resolution_form
+   - User reports failure → intent: feedback_negative, action: suggest_solution (try next)
+   - After proposed all suggestions and no improvement and no other leads → action: present_escalation_form OR switch to the next likely cause
+
+CATEGORY SWITCHING:
+• You CAN switch to a different problem category anytime
+• If user repeatedly clarifies different symptoms → Switch category by returning new category slug
+• If image shows different problem than selected category → Switch categories
+• System automatically updates to new category when you return different slug
+
+RESOLUTION DETECTION (PRIORITY):
+• If solution was suggested AND new image shows improvement → intent: feedback_positive, action: present_resolution_form
+• Image changing from "issue" to "clean" after solution = likely resolved
+• Don't treat improvement as contradictory - treat as positive outcome
+• Present resolution form to confirm, keep problem category for statistics
+
+CLARIFYING QUESTIONS:
+• Limit clarifying questions - prefer suggesting actionable solutions
+• If user indicates no behavior change, assume machine-related cause
+• Move to solution quickly rather than gathering excessive details
+
+CRITICAL RULES:
+• Prioritize IMAGE ANALYSIS over user text for problem identification
+• If image contradicts user text, set intent: contradictory
+• Don't use contradictory intent when image shows improvement after solution
+• Suggest only ONE solution at a time
+• Don't repeat already attempted solutions
+• Stay on same cause if user confirms it
+• Switch cause only if: solution failed OR user denies the cause
+• Detect resolution from context changes, not just explicit user confirmation
+• Maintain problem category throughout conversation for tracking, unless another problem detected
 
 REASONING: Explain intent, action choice, and evidence."""
     
@@ -200,40 +254,46 @@ REASONING: Explain intent, action choice, and evidence."""
     ) -> str:
         """Build content for classifier."""
         
-        lines = ["=== USER INPUT ==="]
+        lines = []
+        
+        # User input
         if request.user_text:
-            lines.append(f"User text: {request.user_text}")
+            lines.append(f"User: {request.user_text}")
         else:
-            lines.append("User text: (empty - only image sent)")
+            lines.append("User: (sent image only)")
         
-        lines.append("\n=== CONVERSATION CONTEXT ===")
+        # Recent conversation context (last 5 events)
         if request.context.events:
-            for event in request.context.events[-10:]:
-                lines.append(f"- {event}")
-        else:
-            lines.append("(No previous context)")
+            lines.append("\nRecent conversation:")
+            for event in request.context.events[-5:]:
+                lines.append(f"  {event}")
         
-        lines.append("\n=== ATTEMPTED SOLUTIONS ===")
+        # Attempted solutions
         if attempted_solutions:
-            lines.append(f"Already tried: {', '.join(attempted_solutions)}")
-        else:
-            lines.append("(None yet)")
+            lines.append(f"\nAlready tried: {', '.join(attempted_solutions)}")
         
-        # Smart catalog formatting - only show what's needed
-        lines.append("\n=== AVAILABLE PROBLEMS & SOLUTIONS ===")
-        lines.append(self._format_catalog_smart(catalog, existing_problem_slug))
+        # Catalog
+        lines.append("\n" + self._format_catalog_smart(catalog, existing_problem_slug))
         
         return "\n".join(lines)
     
     def _format_catalog_smart(self, catalog: Dict, existing_problem_slug: Optional[str]) -> str:
-        """Smart catalog formatting - show less detail when no problem identified yet."""
+        """Smart catalog formatting - show category list, then focused details if problem selected."""
+        
+        # Always show category list
+        lines = ["Problem categories:"]
+        for cat_slug, cat_data in catalog.items():
+            lines.append(f"  • {cat_slug}: {cat_data['name']}")
         
         if existing_problem_slug:
-            # Show full details for the identified problem only
-            return self._format_catalog_focused(catalog, existing_problem_slug)
+            # Show causes/solutions for selected category
+            lines.append(f"\nSelected: {existing_problem_slug}")
+            lines.append(self._format_catalog_focused(catalog, existing_problem_slug))
         else:
-            # Just list categories briefly
-            return self._format_catalog_categories_only(catalog)
+            # No category selected yet - identify first, then get details
+            lines.append("\n→ Identify the problem category, then ask for confirmation.")
+        
+        return "\n".join(lines)
     
     async def _detect_existing_problem(self, session_id: UUID) -> str | None:
         """Detect if conversation already has a CONFIRMED problem category from database.
@@ -251,27 +311,18 @@ REASONING: Explain intent, action choice, and evidence."""
         
         return None
     
-    def _format_catalog_categories_only(self, catalog: Dict) -> str:
-        """Format catalog showing only category names."""
-        lines = ["Categories (brief overview):"]
-        for cat_slug, cat_data in catalog.items():
-            lines.append(f"  • {cat_slug}: {cat_data['name']}")
-        lines.append("\n(Full details will be provided once you identify the problem category)")
-        return "\n".join(lines)
-    
     def _format_catalog_focused(self, catalog: Dict, problem_category: str) -> str:
-        """Format catalog showing full details for ONE category only."""
+        """Format causes and solutions for selected category."""
         if problem_category not in catalog:
-            # Fallback to categories only
-            return self._format_catalog_categories_only(catalog)
+            return f"Category '{problem_category}' not found."
         
-        lines = [f"Details for {problem_category}:"]
         cat_data = catalog[problem_category]
+        lines = []
         
         for cause in cat_data.get("causes", []):
-            lines.append(f"\n  Cause: {cause['slug']} - {cause['name']}")
+            lines.append(f"\nCause: {cause['name']}")
             for sol in cause.get("solutions", []):
-                lines.append(f"    • {sol['slug']}: {sol['title']}")
+                lines.append(f"  → {sol['slug']}: {sol['title']}")
         
         return "\n".join(lines)
     

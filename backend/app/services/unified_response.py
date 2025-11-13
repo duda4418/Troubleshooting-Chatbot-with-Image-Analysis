@@ -26,9 +26,14 @@ logger = logging.getLogger(__name__)
 
 class ResponsePayload(BaseModel):
     """AI-generated response text."""
-    reply: str = Field(description="User-facing response message. Friendly, concise, 2-3 sentences max.")
+    
+    reply: str = Field(
+        description="User-facing response message. Friendly, concise, 2-3 sentences max.",
+        max_length=600
+    )
     suggested_action: Optional[str] = Field(
         default=None,
+        max_length=300,
         description="Short USER action (what the USER should do). Example: 'Lower rinse aid to level 1'. NOT what the AI does. Null if no user action needed."
     )
 

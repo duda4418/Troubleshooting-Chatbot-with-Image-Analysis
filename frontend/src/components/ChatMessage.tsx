@@ -93,7 +93,7 @@ const ChatMessageCard = ({ message, isBusy = false, onSubmitForm, onDismissForm 
 
   const alignment = message.role === "user" ? "justify-end" : "justify-start";
   
-  // Check if this is an image-only message (no text content)
+  // Check if message has text or images
   const hasText = message.content && message.content.trim().length > 0;
   const hasImages = attachments && attachments.length > 0;
   const isImageOnly = hasImages && !hasText && message.role === "user";
@@ -119,34 +119,43 @@ const ChatMessageCard = ({ message, isBusy = false, onSubmitForm, onDismissForm 
           ) : null}
         </div>
       ) : (
-        /* Regular messages with text bubble */
-        <MessageBubble role={message.role} header={header} status={message.status} footer={footerText}>
-          {isAssistantPending ? <TypingIndicator /> : hasText ? <MessageMarkdown content={message.content} /> : null}
-
-          {/* Only show attachments inside bubble if there's also text */}
-          {attachments && hasText ? <MessageAttachmentGrid attachments={attachments} /> : null}
-
-          {message.metadata?.suggested_actions?.length ? (
-            <MessageActionList suggestedActions={message.metadata.suggested_actions} />
+        /* Regular messages: images above bubble, text in bubble */
+        <div className={clsx("flex flex-col gap-2", message.role === "user" ? "items-end" : "items-start")}>
+          {header}
+          
+          {/* Show images above bubble if present */}
+          {hasImages ? (
+            <div className="max-w-sm">
+              <MessageAttachmentGrid attachments={attachments} standalone />
+            </div>
           ) : null}
+          
+          {/* Text bubble */}
+          <MessageBubble role={message.role} status={message.status} footer={footerText}>
+            {isAssistantPending ? <TypingIndicator /> : hasText ? <MessageMarkdown content={message.content} /> : null}
 
-          {message.metadata?.tool_results?.length ? (
-            <MessageToolResults results={message.metadata.tool_results} />
-          ) : null}
+            {message.metadata?.suggested_actions?.length ? (
+              <MessageActionList suggestedActions={message.metadata.suggested_actions} />
+            ) : null}
 
-          {confidenceLabel ? (
-            <div className="mt-3 text-xs font-medium uppercase tracking-wide text-white/50">{confidenceLabel}</div>
-          ) : null}
+            {message.metadata?.tool_results?.length ? (
+              <MessageToolResults results={message.metadata.tool_results} />
+            ) : null}
 
-          {shouldRenderFollowUp ? (
-            <FollowUpForm
-              form={followUpForm}
-              disabled={isBusy || isAssistantPending}
-              onSubmit={(submission) => onSubmitForm(message, followUpForm, submission)}
-              onDismiss={onDismissForm ? () => onDismissForm(message, followUpForm) : undefined}
-            />
-          ) : null}
-        </MessageBubble>
+            {confidenceLabel ? (
+              <div className="mt-3 text-xs font-medium uppercase tracking-wide text-white/50">{confidenceLabel}</div>
+            ) : null}
+
+            {shouldRenderFollowUp ? (
+              <FollowUpForm
+                form={followUpForm}
+                disabled={isBusy || isAssistantPending}
+                onSubmit={(submission) => onSubmitForm(message, followUpForm, submission)}
+                onDismiss={onDismissForm ? () => onDismissForm(message, followUpForm) : undefined}
+              />
+            ) : null}
+          </MessageBubble>
+        </div>
       )}
     </div>
   );
