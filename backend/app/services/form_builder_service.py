@@ -43,6 +43,7 @@ class FormBuilderService:
             description="Please confirm if your problem has been fixed",
             fields=[
                 GeneratedFormField(
+                    field_id="is_resolved",
                     question="Is the problem resolved?",
                     input_type="single_choice",
                     required=True,
@@ -61,6 +62,7 @@ class FormBuilderService:
             description="Would you like us to connect you with a specialist?",
             fields=[
                 GeneratedFormField(
+                    field_id="escalate_confirmed",
                     question="Do you want to escalate to human support?",
                     input_type="single_choice",
                     required=True,

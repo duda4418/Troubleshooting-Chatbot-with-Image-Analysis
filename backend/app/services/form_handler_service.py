@@ -34,20 +34,27 @@ class FormHandlerService:
         fields = form_response.get("fields", [])
         form_id = form_response.get("form_id", "")
         
-        logger.info(f"Processing form submission: {form_id}")
+        logger.info(f"Processing form submission: form_id={form_id}")
+        logger.info(f"Fields received: {fields}")
         
-        # Extract field values
+        # Extract field values - check both 'field_id' and 'id' for compatibility
         is_resolved = None
         escalate_confirmed = None
         
         for field in fields:
-            field_id = field.get("field_id", "")
+            field_id = field.get("field_id") or field.get("id", "")
             value = field.get("value")
+            label = field.get("label", "")
             
-            if field_id == "is_resolved":
+            logger.info(f"  Field: id={field_id}, value={value}, label={label}")
+            
+            # Match by field_id first, then by label text as fallback
+            if field_id == "is_resolved" or "problem resolved" in label.lower():
                 is_resolved = value == "yes"
-            elif field_id == "escalate_confirmed":
+                logger.info(f"  → Detected resolution form: is_resolved={is_resolved}")
+            elif field_id == "escalate_confirmed" or "escalate to human" in label.lower():
                 escalate_confirmed = value == "yes"
+                logger.info(f"  → Detected escalation form: escalate_confirmed={escalate_confirmed}")
         
         # Resolution form
         if is_resolved is not None:
@@ -79,5 +86,6 @@ class FormHandlerService:
         
         # Unknown form type
         else:
-            logger.warning(f"Unknown form type submitted: {form_id}")
+            logger.warning(f"Unknown form type - is_resolved={is_resolved}, escalate_confirmed={escalate_confirmed}")
+            logger.warning(f"Form response data: {form_response}")
             return None  # Continue flow normally

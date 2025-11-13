@@ -264,14 +264,17 @@ class UnifiedWorkflowService:
             await self._track_solution(session_id, classification.solution_slug)
         
         # === UPDATE SESSION STATUS ===
-        if classification.next_action == NextAction.CLOSE_RESOLVED:
+        # Only close session if there's no form to present (form means user needs to confirm first)
+        if classification.next_action == NextAction.CLOSE_RESOLVED and not answer.follow_up_form:
             await self._session_repo.set_status(session_id, "resolved")
-            logger.info("Session marked as RESOLVED")
-        elif classification.next_action == NextAction.ESCALATE:
+            logger.info("Session marked as RESOLVED (no form)")
+        elif classification.next_action == NextAction.ESCALATE and not answer.follow_up_form:
             await self._session_repo.set_status(session_id, "escalated")
-            logger.info("Session marked as ESCALATED")
+            logger.info("Session marked as ESCALATED (no form)")
         else:
             await self._session_repo.touch(session_id)
+            if answer.follow_up_form:
+                logger.info("Session kept open - waiting for form response")
         
         logger.info("=" * 80)
         logger.info("WORKFLOW COMPLETED SUCCESSFULLY")

@@ -23,6 +23,7 @@ class GeneratedFormOption(BaseModel):
 
 
 class GeneratedFormField(BaseModel):
+    field_id: Optional[str] = None  # Identifier for the field (e.g., "is_resolved")
     question: str
     input_type: str
     required: bool = False

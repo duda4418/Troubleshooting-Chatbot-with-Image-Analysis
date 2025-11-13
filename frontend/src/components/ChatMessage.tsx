@@ -111,7 +111,7 @@ const ChatMessageCard = ({ message, isBusy = false, onSubmitForm, onDismissForm 
       {isImageOnly ? (
         <div className={clsx("flex flex-col gap-2", message.role === "user" ? "items-end" : "items-start")}>
           {header}
-          <div className="max-w-sm">
+          <div className={attachments && attachments.length > 1 ? "max-w-2xl" : "max-w-sm"}>
             <MessageAttachmentGrid attachments={attachments} standalone />
           </div>
           {footerText ? (
@@ -125,7 +125,7 @@ const ChatMessageCard = ({ message, isBusy = false, onSubmitForm, onDismissForm 
           
           {/* Show images above bubble if present */}
           {hasImages ? (
-            <div className="max-w-sm">
+            <div className={attachments && attachments.length > 1 ? "max-w-2xl" : "max-w-sm"}>
               <MessageAttachmentGrid attachments={attachments} standalone />
             </div>
           ) : null}
