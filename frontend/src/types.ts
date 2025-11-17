@@ -98,6 +98,8 @@ export interface MessageMetadata {
   follow_up_questions?: string[];
   follow_up_form_summary?: string;
   client_hidden?: boolean;
+  intro_message?: boolean;
+  suppress_timestamp?: boolean;
   extra?: Record<string, unknown>;
   [key: string]: unknown;
 }

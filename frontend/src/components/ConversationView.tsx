@@ -1,6 +1,7 @@
-import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import ChatComposer from "./ChatComposer";
 import ConversationTimeline from "./conversation/ConversationTimeline";
+import { useIntroSequence } from "./conversation/useIntroSequence";
 import type { FollowUpFormSubmission } from "./followup-form";
 import type { ChatMessage, FollowUpFormDescriptor } from "../types";
 import FeedbackPrompt from "./feedback/FeedbackPrompt";
@@ -40,9 +41,23 @@ const ConversationView = ({
   const lastSessionForMessagesRef = useRef<string | null>(activeSessionId ?? null);
   const [composerHeight, setComposerHeight] = useState(0);
   const [renderedMessages, setRenderedMessages] = useState<ChatMessage[]>(messages);
-  const prevMessageCountRef = useRef(renderedMessages.length);
+  const { introMessages, typingMessage } = useIntroSequence({
+    sessionId: activeSessionId ?? null,
+    hasServerMessages: messages.length > 0,
+  });
+
+  const displayedMessages = useMemo(
+    () => [
+      ...introMessages,
+      ...(typingMessage ? [typingMessage] : []),
+      ...renderedMessages,
+    ],
+    [introMessages, typingMessage, renderedMessages]
+  );
+
+  const prevMessageCountRef = useRef(displayedMessages.length);
   const prevLastMessageRef = useRef<ChatMessage | undefined>(
-    renderedMessages.length ? renderedMessages[renderedMessages.length - 1] : undefined
+    displayedMessages.length ? displayedMessages[displayedMessages.length - 1] : undefined
   );
 
   useEffect(() => {
@@ -138,9 +153,9 @@ const ConversationView = ({
     }
 
     const prevCount = prevMessageCountRef.current;
-    const nextCount = renderedMessages.length;
+    const nextCount = displayedMessages.length;
     const previousLast = prevLastMessageRef.current;
-    const nextLast = nextCount ? renderedMessages[nextCount - 1] : undefined;
+    const nextLast = nextCount ? displayedMessages[nextCount - 1] : undefined;
 
     const appended = nextCount > prevCount;
     const lastChanged =
@@ -161,11 +176,11 @@ const ConversationView = ({
       const behavior = appended && nextCount - prevCount > 1 ? "auto" : "smooth";
       scrollToBottom(behavior);
     }
-  }, [renderedMessages, scrollToBottom]);
+  }, [displayedMessages, scrollToBottom]);
 
   useEffect(() => {
     handleScroll();
-  }, [handleScroll, renderedMessages.length]);
+  }, [handleScroll, displayedMessages.length]);
 
   const wasLoadingRef = useRef(loading);
 
@@ -286,8 +301,13 @@ const ConversationView = ({
           data-testid="conversation-scroll-area"
         >
           <ConversationTimeline
-            messages={renderedMessages}
-            loading={loading && renderedMessages.length === 0}
+            messages={displayedMessages}
+            loading={
+              loading &&
+              renderedMessages.length === 0 &&
+              introMessages.length === 0 &&
+              !typingMessage
+            }
             isBusy={isSending}
             onSubmitForm={handleFormSubmit}
             onDismissForm={handleFormDismiss}

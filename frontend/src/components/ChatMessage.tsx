@@ -50,7 +50,12 @@ const ChatMessageCard = ({ message, isBusy = false, onSubmitForm, onDismissForm 
   if (message.role === "assistant" && message.metadata?.client_hidden) {
     return null;
   }
+  const showTimestamp = message.metadata?.suppress_timestamp !== true;
+
   const formattedTime = useMemo(() => {
+    if (!showTimestamp) {
+      return "";
+    }
     const date = new Date(message.timestamp);
     if (Number.isNaN(date.getTime())) {
       return "";
@@ -60,7 +65,7 @@ const ChatMessageCard = ({ message, isBusy = false, onSubmitForm, onDismissForm 
       hour: "2-digit",
       minute: "2-digit"
     }).format(date);
-  }, [message.timestamp]);
+  }, [message.timestamp, showTimestamp]);
 
   const attachments = useMemo(() => normalizeAttachments(message.metadata), [message.metadata]);
   const followUpForm = useMemo(() => message.metadata?.follow_up_form, [message.metadata]);
