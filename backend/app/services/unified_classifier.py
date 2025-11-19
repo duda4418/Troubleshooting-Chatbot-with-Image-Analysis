@@ -48,7 +48,7 @@ class ClassifierPayload(BaseModel):
     confidence: float = Field(ge=0, le=1, description="Confidence in classification")
     reasoning: str = Field(
         description="Detailed explanation of why this classification was made",
-        max_length=500
+        max_length=800
     )
     
     # Problem details
@@ -60,7 +60,7 @@ class ClassifierPayload(BaseModel):
     clarifying_question: Optional[str] = Field(
         default=None,
         max_length=300,
-        description="Concise clarifying question (1-2 sentences max)"
+        description="Concise clarifying question in natural language (1-2 sentences max). Never mention slugs, IDs, or technical terms."
     )
     
     # Issues
@@ -179,6 +179,14 @@ class UnifiedClassifierService:
         """Build classifier instructions."""
         return """You are a dishwasher troubleshooting assistant. Analyze the situation and determine the next action.
 
+⚠️ CRITICAL CONSTRAINT - KNOWLEDGE BASE ONLY:
+• You MUST use ONLY the causes and solutions from the provided catalog
+• DO NOT use your own knowledge about dishwashers or appliances
+• DO NOT invent or suggest solutions not listed in the catalog
+• If a problem category is selected, you MUST choose from its listed causes/solutions
+• If none of the catalog solutions match, use action: present_escalation_form
+• This is a knowledge base testing system - accuracy to catalog is mandatory
+
 INTENTS:
 • new_problem - User reports an issue or sends image of problem
 • clarifying - User provides more details about current problem
@@ -205,8 +213,9 @@ WORKFLOW:
    - DO NOT suggest solutions yet
 
 2. Problem CONFIRMED → Now you see causes/solutions for that category
-   - Identify most likely cause based on symptoms
+   - Identify most likely cause based on symptoms from CATALOG ONLY
    - Set action: suggest_solution
+   - Choose solution_slug from the listed solutions under that cause
    - Don't repeat already attempted solutions
 
 3. After suggestion → Evaluate outcome
@@ -232,8 +241,12 @@ CLARIFYING QUESTIONS:
 • Never ask the user to re-confirm details they've already provided in their latest message; acknowledge and use that information instead
 • If user indicates no behavior change, assume machine-related cause
 • Move to solution quickly rather than gathering excessive details
+• Use natural, user-friendly language - never mention technical terms like slugs, IDs, or system values
+• Refer to problems by their names (e.g., "shattered plates" not "plate_shattered")
 
 CRITICAL RULES:
+• ⚠️ USE ONLY CATALOG DATA - Do not apply your own dishwasher knowledge
+• ⚠️ SOLUTION MUST COME FROM CATALOG - Check the solution_slug exists under the selected cause
 • Prioritize IMAGE ANALYSIS over user text for problem identification
 • If image contradicts user text, set intent: contradictory
 • Don't use contradictory intent when image shows improvement after solution
@@ -246,7 +259,7 @@ CRITICAL RULES:
 • When user requests escalation, use present_escalation_form to show the form first. Only use escalate action after form submission.
 • When escalating, try to convince the user to try more troubleshooting, but still provide the form and acknowledge their request.
 
-REASONING: Explain intent, action choice, and evidence."""
+REASONING: Explain intent, action choice, and evidence. When suggesting solutions, explicitly cite which cause/solution from the catalog you selected."""
     
     def _build_content(
         self,
@@ -353,6 +366,7 @@ REASONING: Explain intent, action choice, and evidence."""
                             "id": sol.id,
                             "slug": sol.slug,
                             "title": sol.title,
+                            "summary": sol.summary,
                             "instructions": sol.instructions,
                         }
                         for sol in solutions
@@ -453,6 +467,7 @@ REASONING: Explain intent, action choice, and evidence."""
                                     if sol["slug"] == payload.solution_slug:
                                         result.solution_slug = sol["slug"]
                                         result.solution_title = sol["title"]
+                                        result.solution_summary = sol.get("summary")  # Optional field
                                         result.solution_steps = sol["instructions"]
                                         result.solution_already_tried = sol["slug"] in attempted_solutions
                                         break

@@ -110,6 +110,12 @@ class UnifiedResponseService:
         base_instructions = """You are a friendly dishwasher troubleshooting assistant.
 Generate a conversational response based on the classification decisions provided.
 
+⚠️ CRITICAL CONSTRAINT - USE ONLY PROVIDED DATA:
+- You MUST use ONLY the solution_title and solution_steps from classification
+- DO NOT add your own dishwasher knowledge or suggestions
+- DO NOT modify or expand the solution beyond what's in solution_steps
+- This is a knowledge base testing system - you must stick to the provided content
+
 IMPORTANT RULES:
 - Keep responses SHORT: 2-3 sentences maximum
 - Be friendly and natural, not robotic
@@ -119,6 +125,7 @@ IMPORTANT RULES:
 
 SUGGESTED ACTIONS:
 - suggested_action should be USER-FACING (what the user should do)
+- Must come directly from solution_steps - do not invent actions
 - Examples: "Lower rinse aid to level 1", "Run empty hot cycle with vinegar", "Check spray arms"
 - NOT AI actions like "Ask for details" or "Present form"
 - Set to null if there's no concrete action for the user to take
@@ -129,13 +136,24 @@ SUGGESTED ACTIONS:
             return base_instructions + """
 TASK: Suggest a solution to try
 
+⚠️ MANDATORY: Use ONLY the provided solution data from classification:
+- problem_cause_name: The identified cause
+- solution_title: Short title of the solution
+- solution_summary: Brief explanation (if available)
+- solution_steps: Full detailed instructions
+
+Do NOT add additional advice or use your own knowledge.
+
 Structure:
-1. First sentence: Briefly explain what you think the problem/cause is
-2. Second sentence: Suggest ONE clear action to try
+1. First sentence: Explain the cause using problem_cause_name
+2. Second sentence: Introduce the solution using solution_title and solution_summary
+3. Keep it conversational and friendly
 
-Example: "This looks like rinse aid overdosing, which leaves waxy residue on glass. Try lowering the rinse-aid setting to level 1."
+Example: "This appears to be [problem_cause_name]. [solution_summary if available]. [Brief reference to solution_title]."
 
-Use the solution_title and solution_steps from classification.
+The suggested_action field should be a concise summary extracted from solution_steps (e.g., first main action).
+
+Note: The full solution_steps will be displayed separately in the UI, so you don't need to repeat all details in the reply.
 """
         
         elif action == NextAction.ASK_CLARIFYING_QUESTION:
@@ -225,11 +243,13 @@ Mention they'll be contacted with next steps.
             lines.append(f"Problem Cause: {classification.problem_cause_name}")
         
         if classification.solution_title:
-            lines.append(f"Solution: {classification.solution_title}")
+            lines.append(f"Solution Title: {classification.solution_title}")
+            
+            if classification.solution_summary:
+                lines.append(f"Solution Summary: {classification.solution_summary}")
+            
             if classification.solution_steps:
-                # Only show first step/instruction
-                first_step = classification.solution_steps.split('\n')[0] if classification.solution_steps else ""
-                lines.append(f"First Step: {first_step}")
+                lines.append(f"\nFull Instructions:\n{classification.solution_steps}")
         
         if classification.clarifying_question:
             lines.append(f"Clarifying Question: {classification.clarifying_question}")

@@ -79,6 +79,7 @@ class ClassificationResult(BaseModel):
     # === Solution to Suggest ===
     solution_slug: Optional[str] = None
     solution_title: Optional[str] = None
+    solution_summary: Optional[str] = None  # Brief explanation of why/what
     solution_steps: Optional[str] = None  # Full instructions
     solution_already_tried: bool = False
     

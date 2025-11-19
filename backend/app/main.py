@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.routers.assistant import router as assistant_router
 from app.api.routers.troubleshooting_import import router as troubleshooting_import_router
 from app.api.routers.metrics import router as metrics_router
+from app.api.routers.catalogue import router as catalogue_router
 from app.core.config import settings
 from app.core.database import get_db_provider
 
@@ -29,8 +30,10 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["*"],
+    expose_headers=["*"],
+    max_age=3600,
 )
 
 
@@ -42,3 +45,4 @@ async def healthz():
 app.include_router(assistant_router)
 app.include_router(metrics_router)
 app.include_router(troubleshooting_import_router)
+app.include_router(catalogue_router)

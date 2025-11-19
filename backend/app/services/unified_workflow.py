@@ -233,11 +233,27 @@ class UnifiedWorkflowService:
         logger.info("-" * 80)
         logger.info("BUILDING ANSWER")
         
-        # If conversation is being closed, don't suggest "Close conversation"
+        # Build suggested actions list
         suggested_actions = []
+        
+        # If conversation is being closed, don't suggest actions
         if classification.next_action not in (NextAction.CLOSE_RESOLVED, NextAction.ESCALATE):
-            if response.suggested_action:
+            # If suggesting a solution, include the full instructions as action items
+            if classification.next_action == NextAction.SUGGEST_SOLUTION and classification.solution_steps:
+                # Parse solution steps into individual action items
+                steps = classification.solution_steps.strip().split('\n')
+                for step in steps:
+                    step = step.strip()
+                    # Remove markdown bullets and numbering
+                    step = step.lstrip('-*•').strip()
+                    step = step.lstrip('0123456789.').strip()
+                    if step:  # Only add non-empty steps
+                        suggested_actions.append(step)
+                logger.info(f"  └─ Added {len(suggested_actions)} solution steps as suggested actions")
+            elif response.suggested_action:
+                # For other actions, use the single suggested action
                 suggested_actions = [response.suggested_action]
+                logger.info(f"  └─ Single suggested action: {response.suggested_action}")
         
         answer = AssistantAnswer(
             reply=response.reply,

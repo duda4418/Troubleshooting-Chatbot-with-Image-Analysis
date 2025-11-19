@@ -5,6 +5,7 @@ import Footer from "layout/Footer";
 import NotificationOverlay from "components/NotificationOverlay";
 import ConversationDashboardPage from "pages/ConversationDashboardPage";
 import ConversationDetailPage from "pages/ConversationDetailPage";
+import CataloguePage from "pages/CataloguePage";
 import {
   fetchSessions,
   fetchSessionHistory,
@@ -529,6 +530,7 @@ export interface ChatOutletContext {
   activeSession: ConversationSession | null;
   sessionClosed: boolean;
   navigateToDashboard: () => void;
+  navigateToCatalogue: () => void;
   loadHistory: (sessionId: string) => Promise<void>;
 }
 
@@ -536,6 +538,7 @@ function ChatLayout() {
   const navigate = useNavigate();
   const matchConversation = useMatch("/c/:sessionId");
   const matchConversationRoot = useMatch({ path: "/c", end: true });
+  const matchCatalogue = useMatch("/catalogue");
 
   const [sessions, setSessions] = useState<ConversationSession[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(() => {
@@ -865,6 +868,10 @@ function ChatLayout() {
     [activeSessionId, refreshSessions, sessionClosed]
   );
 
+  const navigateToCatalogue = useCallback(() => {
+    navigate("/catalogue");
+  }, [navigate]);
+
   const navigateToDashboard = useCallback(() => {
     navigate("/dashboard");
   }, [navigate]);
@@ -886,12 +893,16 @@ function ChatLayout() {
     activeSession,
     sessionClosed,
     navigateToDashboard,
+    navigateToCatalogue,
     loadHistory,
   };
 
+  // Toggle between catalogue and dashboard based on current route
+  const handleToggleSidebar = matchCatalogue ? navigateToDashboard : navigateToCatalogue;
+
   return (
     <div className="flex min-h-screen flex-col bg-brand-background text-white">
-      <Header onToggleSidebar={navigateToDashboard} />
+      <Header onToggleSidebar={handleToggleSidebar} />
       <NotificationOverlay message={error} tone="error" onClose={() => setError(null)} />
 
       <div className="flex flex-1 flex-col">
@@ -909,6 +920,7 @@ function App() {
       <Route element={<ChatLayout />}>
         <Route index element={<Navigate to="dashboard" replace />} />
         <Route path="dashboard" element={<ConversationDashboardPage />} />
+        <Route path="catalogue" element={<CataloguePage />} />
         <Route path="c" element={<ConversationDetailPage />} />
         <Route path="c/:sessionId" element={<ConversationDetailPage />} />
         <Route path="*" element={<Navigate to="dashboard" replace />} />
