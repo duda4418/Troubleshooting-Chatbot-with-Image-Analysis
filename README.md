@@ -1,120 +1,99 @@
 # Troubleshooting Chatbot with Image Analysis
 
-A small FastAPI service that analyzes images of dishwasher results (e.g., spots, streaks) and runs an interactive troubleshooting flow with users. This README explains the API endpoints, request/response formats, session behavior, and how to run the server.
+A conversational AI system that helps users troubleshoot dishwasher problems using text and image analysis. The assistant identifies issues, suggests solutions from a knowledge base, and can escalate to human support when needed.
 
-## Table of contents
+## Application Flow
 
-- Overview
-- API Endpoints
-  - POST /analyze
-  - POST /chat
-  - POST /feedback
-- Session handling
-- Run locally
-- Production notes
-- Contributing
+1. User describes a problem or uploads an image
+2. AI classifies the issue into a problem category (e.g., spots, residue, cloudy glass)
+3. System asks clarifying questions if needed to confirm the problem
+4. AI suggests solutions from the knowledge base catalog
+5. User tries solutions and provides feedback
+6. If unresolved after trying all solutions, user can escalate to support
+7. Session closes when problem is resolved or escalated
 
-## Overview
+## Architecture
 
-This service accepts an image and optional user notes, uses an AI image classifier to predict an issue label (for example: "spots", "streaks"), and then guides the user through step-by-step troubleshooting actions via an interactive chat-like flow. Sessions are kept in-memory for simplicity; see "Production notes" for persistence recommendations.
+### Backend
+- FastAPI application with PostgreSQL database
+- Unified classifier determines user intent and next actions
+- Response generator creates user-friendly messages
+- Knowledge base stores problem categories, causes, and solutions
+- Image analysis using OpenAI Vision models
+- Session management and conversation history tracking
 
-## API Endpoints
+### Frontend
+- React with TypeScript and Tailwind CSS
+- Conversation interface with message history
+- Form-based interactions for feedback and escalation
+- Dashboard showing past conversations
+- Catalogue management page for editing knowledge base
 
-### POST /analyze
+### Database Schema
+- Conversation sessions and messages
+- Problem categories, causes, and solutions (hierarchical)
+- Session problem state tracking
+- Suggested solutions and user feedback
+- Usage metrics for AI model calls
 
-Starts a new troubleshooting session by analyzing an uploaded image.
+## Setup
 
-Request (multipart/form-data):
+### Initial Setup
+```powershell
+# Initialize project, images, and containers
+./scripts/setup/run.ps1
 
-```http
-POST /analyze
-Content-Type: multipart/form-data
-
-- image: file (required) — photo of dishwasher results
-- notes: string (optional) — additional user notes
+# Create PostgreSQL database
+./scripts/setup/db.ps1 -Init
 ```
 
-Successful response (JSON):
-
-```json
-{
-  "label": "spots",
-  "confidence": 0.84,
-  "session_id": "a1b2c3d4-5678"
-}
+### Load Knowledge Base
+Once services are running, import the troubleshooting catalog:
+```powershell
+# POST to /troubleshooting/import with backend/app/data/troubleshooting_catalog.json
 ```
 
-Behavior:
-- Creates a new session stored in memory (SESSIONS dict) with the AI prediction and confidence.
-- The returned session_id must be included in subsequent /chat and /feedback calls.
-
-### POST /chat
-
-Continues the interactive troubleshooting flow for a session. Each call advances or branches the conversation depending on the event.
-
-Request (JSON):
-
-```json
-{
-  "session_id": "a1b2c3d4-5678",
-  "event": "start | confirm | not_solved | try_again | solved | done",
-  "user_input": "optional user text"
-}
+### Development
+```powershell
+# Rebuild on code changes
+docker-compose up --build frontend backend
 ```
 
-Events and behavior:
-- start: Introduces the detected issue and asks the user if they'd like step-by-step guidance.
-- confirm: Sends the first set of recommended actions for the predicted issue.
-- not_solved / try_again: Cycles through alternative actions or troubleshooting steps, if available.
-- solved / done: Marks the session as finished and requests optional feedback.
+### Database Migrations
+```powershell
+# Generate migration
+./scripts/setup/db.ps1 -Revision "Migration message"
 
-Response (JSON):
-
-```json
-{
-  "message": "Do these now:\n• Settings → rinse aid: level_3_or_higher...",
-  "quick_replies": ["Solved", "Not solved", "More options", "Try again"],
-  "actions": [
-    {"type": "setting", "target": "rinse_aid", "value": "level_3_or_higher"}
-  ]
-}
+# Apply migration
+./scripts/setup/db.ps1 -Upgrade
 ```
 
-Notes:
-- "actions" contains structured steps that client apps can render as UI actions.
-- "quick_replies" suggests user responses for a better conversational UX.
+## Azure Deployment
 
-### POST /feedback
+### Backend Configuration
+Set environment variables in Azure Container App:
+- `DATABASE_URL` - PostgreSQL connection string
+- `SECRET_KEY` - Application secret key
+- `OPENAI_API_KEY` - OpenAI API key
+- `CORS_ORIGINS` - Frontend URL (e.g., https://frontend-app.azurecontainerapps.io)
+- CORS add allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
 
-Collects optional user feedback at the end of the troubleshooting flow to measure success and (optionally) improve the model.
+### Frontend Build
+```powershell
+# Build with backend URL
+docker build --build-arg VITE_API_BASE_URL="https://backend-app.azurecontainerapps.io" -t registry/frontend-app:latest frontend
 
-Request (JSON):
-
-```json
-{
-  "session_id": "a1b2c3d4-5678",
-  "solved": true,
-  "final_label": "spots",
-  "notes": "Fixed by increasing rinse aid."
-}
+# Push to registry
+docker push registry/frontend-app:latest
 ```
 
-Response:
+### Backend Build
+```powershell
+# Build backend
+docker build -t registry/backend-app:latest backend
 
-```json
-{"status": "ok"}
+# Push to registry
+docker push registry/backend-app:latest
 ```
 
-## Session handling
-
-- /analyze creates and seeds a session in memory (an entry in SESSIONS).
-- /chat and /feedback use the same session_id to continue or finish the session.
-- Warning: Sessions are in-memory and will be lost if the server restarts. For production use a persistent store such as Redis or a database.
-
-## Run locally
-
-To run the server for development:
-
-```bash
-uvicorn main:app --reload --port 8000
-```
+Deploy container revisions in Azure Portal or via Azure CLI.

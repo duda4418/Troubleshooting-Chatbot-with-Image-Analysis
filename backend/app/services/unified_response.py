@@ -1,0 +1,281 @@
+from __future__ import annotations
+
+import asyncio
+import logging
+from typing import Optional
+
+from openai import OpenAI
+from pydantic import BaseModel, Field
+
+from app.core.config import settings
+from app.data.DTO.simplified_flow_dto import (
+    NextAction,
+    ResponseRequest,
+    ResponseResult,
+    UserIntent,
+)
+from app.services.utils.usage_metrics import extract_usage_details
+
+logger = logging.getLogger(__name__)
+
+
+class ResponsePayload(BaseModel):
+    """AI-generated response text."""
+    
+    reply: str = Field(
+        description="User-facing response message. Friendly, concise, 2-3 sentences max.",
+        max_length=600
+    )
+    suggested_action: Optional[str] = Field(
+        default=None,
+        max_length=300,
+        description="Short USER action (what the USER should do). Example: 'Lower rinse aid to level 1'. NOT what the AI does. Null if no user action needed."
+    )
+
+
+class UnifiedResponseService:
+    """Generates friendly responses based on classification decisions."""
+    
+    def __init__(
+        self,
+        *,
+        api_key: Optional[str] = None,
+        model: Optional[str] = None,
+    ):
+        self._api_key = api_key or settings.OPENAI_API_KEY
+        self._model = model or settings.OPENAI_RESPONSE_MODEL
+        self._client = OpenAI(api_key=self._api_key) if self._api_key else None
+    
+    async def generate(self, request: ResponseRequest) -> ResponseResult:
+        """Generate response text based on classification."""
+        
+        if not self._client:
+            raise RuntimeError("OpenAI API key not configured")
+        
+        logger.info(f"[UnifiedResponse] Generating for action: {request.classification.next_action.value}")
+        
+        loop = asyncio.get_running_loop()
+        response = await loop.run_in_executor(
+            None,
+            lambda: self._invoke_openai(request),
+        )
+        
+        payload = self._parse_response(response)
+        
+        usage = extract_usage_details(
+            response,
+            default_model=self._model,
+            request_type="unified_response",
+        )
+        
+        return ResponseResult(
+            reply=payload.reply,
+            suggested_action=payload.suggested_action,
+            usage=usage,
+        )
+    
+    def _invoke_openai(self, request: ResponseRequest):
+        """Call OpenAI to generate response text."""
+        
+        instructions = self._build_instructions(request)
+        content = self._build_content(request)
+        
+        request_kwargs = {
+            "model": self._model,
+            "instructions": instructions,
+            "input": [{"role": "user", "content": [{"type": "input_text", "text": content}]}],
+            "text_format": ResponsePayload,
+        }
+        
+        model_name = (self._model or "").lower()
+        if "gpt-5" in model_name:
+            request_kwargs["reasoning"] = {"effort": "minimal"}
+            request_kwargs["text"] = {"verbosity": "low"}
+        else:
+            request_kwargs["temperature"] = 0.3
+        
+        return self._client.responses.parse(**request_kwargs)
+    
+    def _build_instructions(self, request: ResponseRequest) -> str:
+        """Build response generation instructions based on next action."""
+        
+        classification = request.classification
+        action = classification.next_action
+        
+        base_instructions = """You are a friendly dishwasher troubleshooting assistant.
+Generate a conversational response based on the classification decisions provided.
+
+CRITICAL CONSTRAINT - USE ONLY PROVIDED DATA:
+- You MUST use ONLY the solution_title and solution_steps from classification
+- DO NOT add your own dishwasher knowledge or suggestions
+- DO NOT modify or expand the solution beyond what's in solution_steps
+- This is a knowledge base testing system - you must stick to the provided content
+
+CRITICAL - NATURAL LANGUAGE ONLY:
+- NEVER mention technical terms like slugs, IDs, variable names, or system identifiers
+- NEVER quote technical values like 'slug_name' or 'plate_shattered'
+- Always use natural, human-friendly language
+- Convert technical names to descriptive phrases (e.g., 'broken plates' not 'plate_shattered')
+- Describe solutions by what they do, not their system names
+
+IMPORTANT RULES:
+- Keep responses SHORT: 2-3 sentences maximum
+- Be friendly and natural, not robotic
+- Vary your language - don't repeat the same phrases
+- Always explain WHY before WHAT when suggesting solutions
+- Only include information relevant to the next_action
+
+SUGGESTED ACTIONS:
+- suggested_action should be USER-FACING (what the user should do)
+- Must come directly from solution_steps - do not invent actions
+- Examples: "Lower rinse aid to level 1", "Run empty hot cycle with vinegar", "Check spray arms"
+- NOT AI actions like "Ask for details" or "Present form"
+- Set to null if there's no concrete action for the user to take
+
+"""
+        
+        if action == NextAction.SUGGEST_SOLUTION:
+            return base_instructions + """
+TASK: Suggest a solution to try
+
+MANDATORY: Use ONLY the provided solution data from classification:
+- problem_cause_name: The identified cause
+- solution_title: Short title of the solution
+- solution_summary: Brief explanation (if available)
+- solution_steps: Full detailed instructions
+
+Do NOT add additional advice or use your own knowledge.
+
+NATURAL LANGUAGE: Present solution_title and problem_cause_name in user-friendly terms.
+Never quote technical slugs or variable names.
+
+Structure:
+1. First sentence: Explain the cause using problem_cause_name (in natural language)
+2. Second sentence: Introduce the solution using solution_title and solution_summary
+3. Keep it conversational and friendly
+
+Example: "This appears to be [natural description of cause]. [solution_summary if available]."
+
+The suggested_action field should be a concise summary extracted from solution_steps.
+
+Note: The full solution_steps will be displayed separately in the UI, so you don't need to repeat all details in the reply.
+"""
+        
+        elif action == NextAction.ASK_CLARIFYING_QUESTION:
+            return base_instructions + """
+TASK: Ask for clarification
+
+Use the clarifying_question from classification.
+Make it friendly and conversational.
+Explain briefly why you're asking if helpful.
+
+NOTE: Set suggested_action to null (we're asking a question, not suggesting an action).
+"""
+        
+        elif action == NextAction.REQUEST_CLEAR_INPUT:
+            return base_instructions + """
+TASK: Request clearer input
+
+The input was unintelligible or contradictory.
+Use the reasoning and contradiction_details to explain what's unclear.
+Ask the user to provide clearer information.
+"""
+        
+        elif action == NextAction.DECLINE_OUT_OF_SCOPE:
+            return base_instructions + """
+TASK: Politely decline out-of-scope question
+
+Explain that you're specifically for dishwasher troubleshooting.
+Invite them to ask dishwasher-related questions.
+"""
+        
+        elif action == NextAction.PRESENT_RESOLUTION_FORM:
+            return base_instructions + """
+TASK: Lead into resolution check
+
+User indicated the problem might be fixed.
+Express that you're glad to hear it.
+Mention that a confirmation form will appear.
+"""
+        
+        elif action == NextAction.PRESENT_ESCALATION_FORM:
+            return base_instructions + """
+TASK: Lead into escalation offer
+
+Explain that available solutions have been tried or the issue requires human help.
+Mention that an escalation form will appear.
+
+REMINDER: Use natural language only. Never mention solution names, slugs, or technical terms.
+Example: Say "the suggested fix" or "the troubleshooting steps" instead of quoting system names.
+"""
+        
+        elif action == NextAction.PRESENT_FEEDBACK_FORM:
+            return base_instructions + """
+TASK: Lead into feedback form
+
+You just suggested a solution.
+Keep it brief - the feedback form will appear asking if it helped.
+"""
+        
+        elif action == NextAction.CLOSE_RESOLVED:
+            return base_instructions + """
+TASK: Confirm resolution and close
+
+Congratulate the user on resolving the issue.
+Let them know they can start a new conversation if needed.
+"""
+        
+        elif action == NextAction.ESCALATE:
+            return base_instructions + """
+TASK: Confirm escalation
+
+Let the user know their issue is being handed to a specialist.
+Mention they'll be contacted with next steps.
+"""
+        
+        return base_instructions
+    
+    def _build_content(self, request: ResponseRequest) -> str:
+        """Build content for response generation."""
+        
+        classification = request.classification
+        
+        lines = [
+            f"Intent: {classification.intent.value}",
+            f"Next Action: {classification.next_action.value}",
+            f"Confidence: {classification.confidence}",
+            f"Reasoning: {classification.reasoning}",
+        ]
+        
+        if classification.problem_cause_name:
+            lines.append(f"Problem Cause: {classification.problem_cause_name}")
+        
+        if classification.solution_title:
+            lines.append(f"Solution Title: {classification.solution_title}")
+            
+            if classification.solution_summary:
+                lines.append(f"Solution Summary: {classification.solution_summary}")
+            
+            if classification.solution_steps:
+                lines.append(f"\nFull Instructions:\n{classification.solution_steps}")
+        
+        if classification.clarifying_question:
+            lines.append(f"Clarifying Question: {classification.clarifying_question}")
+        
+        if classification.contradiction_details:
+            lines.append(f"Contradiction: {classification.contradiction_details}")
+        
+        if classification.out_of_scope_reason:
+            lines.append(f"Out of Scope: {classification.out_of_scope_reason}")
+        
+        if classification.escalation_reason:
+            lines.append(f"Escalation Reason: {classification.escalation_reason}")
+        
+        return "\n".join(lines)
+    
+    def _parse_response(self, response) -> ResponsePayload:
+        """Parse AI response."""
+        payload = getattr(response, "output_parsed", None)
+        if not isinstance(payload, ResponsePayload):
+            raise RuntimeError("Invalid response format")
+        return payload
