@@ -5,8 +5,6 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
-from app.data.DTO.conversation_context_dto import ConversationAIContext
-
 
 class UserMessageRequest(BaseModel):
     session_id: Optional[UUID] = None

@@ -76,6 +76,7 @@ Set environment variables in Azure Container App:
 - `SECRET_KEY` - Application secret key
 - `OPENAI_API_KEY` - OpenAI API key
 - `CORS_ORIGINS` - Frontend URL (e.g., https://frontend-app.azurecontainerapps.io)
+- CORS add allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
 
 ### Frontend Build
 ```powershell

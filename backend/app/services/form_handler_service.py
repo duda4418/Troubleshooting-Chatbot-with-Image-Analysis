@@ -1,9 +1,7 @@
-"""Service for handling form submissions and dismissals."""
 import logging
 from typing import Optional
 from uuid import UUID
 
-from app.data.DTO.assistant_api_dto import AssistantAnswer, AssistantMessageResponse
 from app.data.repositories.conversation_session_repository import ConversationSessionRepository
 
 logger = logging.getLogger(__name__)

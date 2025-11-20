@@ -1,21 +1,10 @@
-"""Unified workflow service - simplified orchestration of the new architecture.
-
-This service:
-1. Calls classifier (makes all decisions)
-2. Calls response generator (creates friendly text)
-3. Attaches forms based on classification decisions
-4. Persists messages and tracks usage
-
-Much simpler than the old workflow - no complex branching logic.
-"""
 from __future__ import annotations
 
 import logging
 from typing import Optional
 from uuid import UUID
 
-from app.data.DTO.conversation_context_dto import ConversationAIContext
-from app.data.DTO.message_flow_dto import AssistantAnswer, GeneratedForm, UserMessageRequest
+from app.data.DTO.message_flow_dto import AssistantAnswer, UserMessageRequest
 from app.data.DTO.simplified_flow_dto import ClassificationRequest, NextAction, ResponseRequest
 from app.data.repositories import (
     ConversationMessageRepository,

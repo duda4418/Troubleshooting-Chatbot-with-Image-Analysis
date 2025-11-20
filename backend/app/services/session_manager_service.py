@@ -1,4 +1,3 @@
-"""Session manager service - handles session queries and feedback."""
 from __future__ import annotations
 
 import logging
@@ -10,7 +9,6 @@ from app.data.repositories import (
     ConversationMessageRepository,
     ConversationSessionRepository,
 )
-from app.data.schemas.models import ConversationSession
 
 logger = logging.getLogger(__name__)
 

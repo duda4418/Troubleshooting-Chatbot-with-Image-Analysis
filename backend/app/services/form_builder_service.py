@@ -1,4 +1,3 @@
-"""Form builder service - generates forms based on next action."""
 from __future__ import annotations
 
 from app.data.DTO.message_flow_dto import GeneratedForm, GeneratedFormField, GeneratedFormOption

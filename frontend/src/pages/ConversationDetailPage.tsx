@@ -1,4 +1,3 @@
-import clsx from "clsx";
 import { useOutletContext } from "react-router-dom";
 import ConversationView from "components/ConversationView";
 import type { ChatOutletContext } from "../App";
@@ -30,14 +29,7 @@ const ConversationDetailPage = () => {
     submitFeedback,
     navigateToDashboard,
   } = useOutletContext<ChatOutletContext>();
-
-  const statusBadge = activeSession
-    ? STATUS_COLORS[activeSession.status] ?? "bg-white/10 text-white/70"
-    : "bg-white/10 text-white/70";
-  const statusLabel = activeSession
-    ? STATUS_LABELS[activeSession.status] ?? activeSession.status
-    : "Draft";
-
+ 
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-6 px-4 pb-12 pt-4 sm:px-6 lg:px-10">
       <div className="sticky top-[72px] z-20 -mx-4 flex flex-col gap-3 px-4 pb-3 pt-2 sm:mx-0 sm:px-6">

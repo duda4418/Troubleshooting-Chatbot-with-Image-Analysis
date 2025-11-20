@@ -18,9 +18,6 @@ from app.data.schemas.models import ProblemCategory, ProblemCause, ProblemSoluti
 router = APIRouter(prefix="/catalogue", tags=["catalogue"])
 
 
-# ==================== DTOs ====================
-
-
 class ProblemCategoryCreate(BaseModel):
     slug: str = Field(..., min_length=1, max_length=64)
     name: str = Field(..., min_length=1, max_length=128)
@@ -104,9 +101,6 @@ class ProblemSolutionRead(BaseModel):
 
     class Config:
         from_attributes = True
-
-
-# ==================== Problem Categories ====================
 
 
 @router.get("/categories", response_model=List[ProblemCategoryRead])
@@ -210,9 +204,6 @@ async def delete_category(
             status_code=500,
             detail=f"Failed to delete category: {str(e)}"
         )
-
-
-# ==================== Problem Causes ====================
 
 
 @router.get("/causes", response_model=List[ProblemCauseRead])
@@ -337,9 +328,6 @@ async def delete_cause(
             status_code=500,
             detail=f"Failed to delete cause: {str(e)}"
         )
-
-
-# ==================== Problem Solutions ====================
 
 
 @router.get("/solutions", response_model=List[ProblemSolutionRead])

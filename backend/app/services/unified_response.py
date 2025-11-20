@@ -1,8 +1,3 @@
-"""Simplified response generator that just creates friendly text.
-
-This service receives classification decisions and generates user-friendly responses.
-It does NOT make decisions - all decision-making happens in the classifier.
-"""
 from __future__ import annotations
 
 import asyncio
@@ -110,11 +105,18 @@ class UnifiedResponseService:
         base_instructions = """You are a friendly dishwasher troubleshooting assistant.
 Generate a conversational response based on the classification decisions provided.
 
-⚠️ CRITICAL CONSTRAINT - USE ONLY PROVIDED DATA:
+CRITICAL CONSTRAINT - USE ONLY PROVIDED DATA:
 - You MUST use ONLY the solution_title and solution_steps from classification
 - DO NOT add your own dishwasher knowledge or suggestions
 - DO NOT modify or expand the solution beyond what's in solution_steps
 - This is a knowledge base testing system - you must stick to the provided content
+
+CRITICAL - NATURAL LANGUAGE ONLY:
+- NEVER mention technical terms like slugs, IDs, variable names, or system identifiers
+- NEVER quote technical values like 'slug_name' or 'plate_shattered'
+- Always use natural, human-friendly language
+- Convert technical names to descriptive phrases (e.g., 'broken plates' not 'plate_shattered')
+- Describe solutions by what they do, not their system names
 
 IMPORTANT RULES:
 - Keep responses SHORT: 2-3 sentences maximum
@@ -136,7 +138,7 @@ SUGGESTED ACTIONS:
             return base_instructions + """
 TASK: Suggest a solution to try
 
-⚠️ MANDATORY: Use ONLY the provided solution data from classification:
+MANDATORY: Use ONLY the provided solution data from classification:
 - problem_cause_name: The identified cause
 - solution_title: Short title of the solution
 - solution_summary: Brief explanation (if available)
@@ -144,14 +146,17 @@ TASK: Suggest a solution to try
 
 Do NOT add additional advice or use your own knowledge.
 
+NATURAL LANGUAGE: Present solution_title and problem_cause_name in user-friendly terms.
+Never quote technical slugs or variable names.
+
 Structure:
-1. First sentence: Explain the cause using problem_cause_name
+1. First sentence: Explain the cause using problem_cause_name (in natural language)
 2. Second sentence: Introduce the solution using solution_title and solution_summary
 3. Keep it conversational and friendly
 
-Example: "This appears to be [problem_cause_name]. [solution_summary if available]. [Brief reference to solution_title]."
+Example: "This appears to be [natural description of cause]. [solution_summary if available]."
 
-The suggested_action field should be a concise summary extracted from solution_steps (e.g., first main action).
+The suggested_action field should be a concise summary extracted from solution_steps.
 
 Note: The full solution_steps will be displayed separately in the UI, so you don't need to repeat all details in the reply.
 """
@@ -197,8 +202,11 @@ Mention that a confirmation form will appear.
             return base_instructions + """
 TASK: Lead into escalation offer
 
-Explain that you've tried available solutions or the issue requires human help.
+Explain that available solutions have been tried or the issue requires human help.
 Mention that an escalation form will appear.
+
+REMINDER: Use natural language only. Never mention solution names, slugs, or technical terms.
+Example: Say "the suggested fix" or "the troubleshooting steps" instead of quoting system names.
 """
         
         elif action == NextAction.PRESENT_FEEDBACK_FORM:

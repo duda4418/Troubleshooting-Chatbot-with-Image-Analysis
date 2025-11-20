@@ -6,8 +6,7 @@ from sqlmodel import select
 
 from app.core.database import DatabaseProvider
 from app.data.repositories.base_repository import BaseRepository
-from app.data.schemas.models import ConversationSession, ConversationMessage, utcnow
-from app.data.schemas.models import ConversationImage
+from app.data.schemas.models import ConversationSession, utcnow
 from app.data.repositories.conversation_image_repository import ConversationImageRepository
 from app.data.repositories.conversation_message_repository import ConversationMessageRepository
 

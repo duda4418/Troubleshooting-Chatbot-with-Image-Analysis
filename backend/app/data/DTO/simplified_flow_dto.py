@@ -1,9 +1,4 @@
-"""Refactored DTOs for simplified classification and response flow.
 
-New Architecture:
-- Classification: Does ALL decision-making (intent, actions, forms, solutions)
-- Response: Just generates friendly text based on classification decisions
-"""
 from __future__ import annotations
 
 from enum import Enum
@@ -15,10 +10,6 @@ from pydantic import BaseModel, Field
 from app.data.DTO.conversation_context_dto import ConversationAIContext
 from app.data.DTO.usage_dto import ModelUsageDetails
 
-
-# ============================================================================
-# ENUMS - User Intent & Next Actions
-# ============================================================================
 
 class UserIntent(str, Enum):
     """What the user is trying to do."""
@@ -46,10 +37,6 @@ class NextAction(str, Enum):
     DECLINE_OUT_OF_SCOPE = "decline_out_of_scope"  # Not our domain
     REQUEST_CLEAR_INPUT = "request_clear_input"  # Ask for clearer description
 
-
-# ============================================================================
-# CLASSIFICATION REQUEST & RESULT
-# ============================================================================
 
 class ClassificationRequest(BaseModel):
     """Input to classification service."""
@@ -101,10 +88,6 @@ class ClassificationResult(BaseModel):
     # === Metadata ===
     usage: Optional[ModelUsageDetails] = None
 
-
-# ============================================================================
-# RESPONSE GENERATION REQUEST & RESULT
-# ============================================================================
 
 class ResponseRequest(BaseModel):
     """Input to response generation service - just needs classification decisions."""

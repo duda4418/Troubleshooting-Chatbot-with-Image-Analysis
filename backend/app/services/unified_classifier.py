@@ -1,14 +1,3 @@
-"""Unified classifier that makes ALL decisions about user intent and next actions.
-
-This service analyzes user input and conversation context to determine:
-- What the user is trying to do (intent)
-- What the assistant should do next (action)
-- What problem/cause/solution applies
-- What form to show (if any)
-- Detailed reasoning for all decisions
-
-The response generation service then just generates friendly text based on these decisions.
-"""
 from __future__ import annotations
 
 import asyncio
@@ -179,7 +168,7 @@ class UnifiedClassifierService:
         """Build classifier instructions."""
         return """You are a dishwasher troubleshooting assistant. Analyze the situation and determine the next action.
 
-⚠️ CRITICAL CONSTRAINT - KNOWLEDGE BASE ONLY:
+CRITICAL CONSTRAINT - KNOWLEDGE BASE ONLY:
 • You MUST use ONLY the causes and solutions from the provided catalog
 • DO NOT use your own knowledge about dishwashers or appliances
 • DO NOT invent or suggest solutions not listed in the catalog
@@ -245,8 +234,8 @@ CLARIFYING QUESTIONS:
 • Refer to problems by their names (e.g., "shattered plates" not "plate_shattered")
 
 CRITICAL RULES:
-• ⚠️ USE ONLY CATALOG DATA - Do not apply your own dishwasher knowledge
-• ⚠️ SOLUTION MUST COME FROM CATALOG - Check the solution_slug exists under the selected cause
+• USE ONLY CATALOG DATA - Do not apply your own dishwasher knowledge
+• SOLUTION MUST COME FROM CATALOG - Check the solution_slug exists under the selected cause
 • Prioritize IMAGE ANALYSIS over user text for problem identification
 • If image contradicts user text, set intent: contradictory
 • Don't use contradictory intent when image shows improvement after solution
